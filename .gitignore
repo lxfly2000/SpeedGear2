@@ -1,0 +1,7 @@
+*.user
+*.aps
+[Dd]ebug/
+[Rr]elease/
+x64/
+lib/
+.vs/
