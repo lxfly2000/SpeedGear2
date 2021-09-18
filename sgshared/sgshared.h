@@ -28,3 +28,5 @@ BOOL SpeedGear_InitializeSharedMemory(BOOL bCreate);
 BOOL SpeedGear_ReleaseSharedMemory();
 BOOL SpeedGear_IsSharedMemoryInitialized();
 SPEEDGEAR_SHARED_MEMORY* SpeedGear_GetSharedMemory();
+
+char* SpeedGear_FormatText(char* buf, int len, const char* fmt, float speed, int fps, int width, int height, int hour, int minute, int second);

@@ -63,6 +63,7 @@ DECLCBK(OnComboMode);
 DECLCBK(OnComboStatusPosition);
 DECLCBK(OnComboStatusBackground);
 DECLCBK(OnComboStatusFormat);
+INT_PTR OnCtlColorStaticStatusPreview(HWND, UINT, WPARAM, LPARAM);
 
 INT_PTR CALLBACK DlgCallback(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -103,6 +104,10 @@ INT_PTR CALLBACK DlgCallback(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			}
 			break;
 		}
+		break;
+	case WM_CTLCOLORSTATIC:
+		if (GetDlgCtrlID(lParam) == IDC_STATIC_STATUS_PREVIEW)
+			return OnCtlColorStaticStatusPreview(hWnd, msg, wParam, lParam);
 		break;
 	}
 	return 0;
@@ -148,13 +153,38 @@ char _iniSaveIntBuf[16];
 LOGFONTA g_logFont = { 0 };
 CHOOSEFONTA g_cf = { sizeof(CHOOSEFONTA),0,0,&g_logFont,0,CF_INITTOLOGFONTSTRUCT | CF_EFFECTS | CF_SCREENFONTS,0 };
 
+void RefreshPreviewText(HWND hwnd)
+{
+	int p = ComboBox_GetCurSel(GetDlgItem(hwnd, IDC_COMBO_STATUS_POSITION));
+	HWND hStatic = GetDlgItem(hwnd, IDC_STATIC_STATUS_PREVIEW);
+	switch (p % 3)
+	{
+	case 0:SetWindowLong(hStatic, GWL_STYLE, (GetWindowStyle(hStatic) & 0xFFFFFFFC) | SS_LEFT); break;
+	case 1:SetWindowLong(hStatic, GWL_STYLE, (GetWindowStyle(hStatic) & 0xFFFFFFFC) | SS_CENTER); break;
+	case 2:SetWindowLong(hStatic, GWL_STYLE, (GetWindowStyle(hStatic) & 0xFFFFFFFC) | SS_RIGHT); break;
+	}
+	switch (p / 3)
+	{
+	case 0:SetWindowLong(hStatic, GWL_STYLE, GetWindowStyle(hStatic) & ~SS_CENTERIMAGE); break;
+	case 1:SetWindowLong(hStatic, GWL_STYLE, GetWindowStyle(hStatic) | SS_CENTERIMAGE); break;
+	case 2:SetWindowLong(hStatic, GWL_STYLE, GetWindowStyle(hStatic) | SS_CENTERIMAGE); break;
+	}
+	char text[256], fmttext[256];
+	GetEditComboBoxText(GetDlgItem(hwnd, IDC_COMBO_STATUS_FORMAT), text, ARRAYSIZE(text) - 1);
+	SpeedGear_FormatText(fmttext, ARRAYSIZE(fmttext), text, 1.0f, 60, 800, 600, 9, 0, 0);
+	SetDlgItemTextA(hwnd, IDC_STATIC_STATUS_PREVIEW, fmttext);
+}
+
 void SetButtonFontText(HWND hwnd)
 {
 	char buf[256];
-	wsprintfA(buf, "字体设置(&T) [%s,%d%s,%d,#%06x]", g_logFont.lfFaceName, g_logFont.lfWeight, g_logFont.lfItalic ? ",倾斜" : "", FONTHEIGHT_TO_POUND(g_logFont.lfHeight), g_cf.rgbColors);
+	wsprintfA(buf, "字体设置(&T) [%s,%d%s,%d,#%06X]", g_logFont.lfFaceName, g_logFont.lfWeight, g_logFont.lfItalic ? ",倾斜" : "", FONTHEIGHT_TO_POUND(g_logFont.lfHeight), g_cf.rgbColors);
 	if (lstrlenA(g_logFont.lfFaceName) == 0)
 		*strchr(buf, ' ') = 0;
 	SetDlgItemTextA(hwnd, IDC_BUTTON_STATUS_FONT, buf);
+	HFONT hFont = CreateFontA(g_logFont.lfHeight, 0, 0, 0, g_logFont.lfWeight, g_logFont.lfItalic, 0, 0, DEFAULT_CHARSET, 0, 0, 0, 0, g_logFont.lfFaceName);
+	HWND hStatic = GetDlgItem(hwnd, IDC_STATIC_STATUS_PREVIEW);
+	SendMessage(hStatic, WM_SETFONT, (WPARAM)hFont, TRUE);
 }
 
 BOOL GuiReadMem(HWND hwnd)
@@ -231,6 +261,90 @@ BOOL MemSaveIni()
 	return TRUE;
 }
 
+HHOOK hHookKb = NULL;
+
+LRESULT CALLBACK KbHookProc(int nCode,WPARAM wParam,LPARAM lParam)
+{
+	if (nCode == HC_ACTION)
+	{
+		switch (wParam)
+		{
+		case WM_KEYUP:case WM_SYSKEYUP:
+		{
+			PKBDLLHOOKSTRUCT pk = (PKBDLLHOOKSTRUCT)lParam;
+			//TODO:pk->vkCode...
+		}
+			break;
+		}
+	}
+	return CallNextHookEx(hHookKb, nCode, wParam, lParam);
+}
+
+HHOOK hHookSGList[16] = { NULL };
+
+BOOL InitKbHook()
+{
+	if (hHookKb)
+		return FALSE;
+	hHookKb = SetWindowsHookEx(WH_KEYBOARD_LL, KbHookProc, GetModuleHandle(NULL), NULL);
+	return TRUE;
+}
+
+BOOL ReleaseKbHook()
+{
+	return UnhookWindowsHookEx(hHookKb);
+}
+
+BOOL StopSpeedGear();
+BOOL StartSpeedGear()
+{
+	int hookType = INI_READ_INT("hookType");
+	if (hookType == 0)
+		hookType = WH_CBT;
+	char* dllName[] = {
+#ifdef _M_IX86
+		"sgd8.dll",
+#endif
+		"sgd9.dll","sgd11.dll","sggl.dll"
+	};
+	for (int i = 0; i < ARRAYSIZE(dllName); i++)
+	{
+		if (hHookSGList[i])
+			return FALSE;
+		HMODULE hDll = LoadLibraryA(dllName[i]);
+		if (hDll == NULL)
+		{
+			StopSpeedGear();
+			MessageBox(NULL, TEXT("无法加载 DLL 文件。"), NULL, MB_ICONERROR);
+			return FALSE;
+		}
+		HOOKPROC fProc = (HOOKPROC)GetProcAddress(hDll, "SGProc");
+		hHookSGList[i] = SetWindowsHookEx(hookType, fProc, hDll, 0);
+		if (hHookSGList[i] == NULL)
+		{
+			StopSpeedGear();
+			TCHAR msg[53];
+			wsprintf(msg, TEXT("无法设置Hook：%#x\n请尝试重新启动该程序；如果还是出错则可能是该类型的钩子不受支持，请到配置文件中修改hookType参数。"), GetLastError());
+			MessageBox(NULL, msg, NULL, MB_ICONERROR);
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+BOOL StopSpeedGear()
+{
+	for (int i = 0; i < ARRAYSIZE(hHookSGList); i++)
+	{
+		if (hHookSGList[i])
+		{
+			UnhookWindowsHookEx(hHookSGList[i]);
+			hHookSGList[i] = NULL;
+		}
+	}
+	return TRUE;
+}
+
 
 //回调函数实现
 
@@ -250,6 +364,8 @@ BOOL OnInitDialog(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	SpeedGear_GetSharedMemory()->hookSpeed = 1.0f;
 	MemReadIni();
 	GuiReadMem(hWnd);
+	RefreshPreviewText(hWnd);
+	InitKbHook();
 
 	return TRUE;
 }
@@ -266,6 +382,7 @@ BOOL OnRestore(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 BOOL OnEndDialog(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+	ReleaseKbHook();
 	if (SpeedGear_ReleaseSharedMemory() == FALSE)
 	{
 		MessageBox(hWnd, TEXT("释放共享内存失败。"), NULL, MB_ICONERROR);
@@ -275,6 +392,13 @@ BOOL OnEndDialog(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 BOOL OnCheckTurnOnOff(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+	if (IsDlgButtonChecked(hWnd, IDC_CHECK_TURN_ON_OFF))
+	{
+		if (!StartSpeedGear(hWnd))
+			CheckDlgButton(hWnd, IDC_CHECK_TURN_ON_OFF, BST_UNCHECKED);
+	}
+	else
+		StopSpeedGear(hWnd);
 	return FALSE;
 }
 
@@ -306,6 +430,7 @@ BOOL OnButtonStatusHelp(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 BOOL OnButtonStatusFont(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+	g_cf.hwndOwner = hWnd;
 	if (ChooseFontA(&g_cf))
 	{
 		SetButtonFontText(hWnd);
@@ -331,12 +456,13 @@ BOOL OnComboStatusPosition(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		return FALSE;
 	GuiSaveMem(hWnd);
 	MemSaveIni();
+	RefreshPreviewText(hWnd);
 	return TRUE;
 }
 
 BOOL OnComboStatusBackground(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-	//Update Static
+	RefreshPreviewText(hWnd);
 	return TRUE;
 }
 
@@ -348,8 +474,18 @@ BOOL OnComboStatusFormat(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	case CBN_SELCHANGE:
 		GuiSaveMem(hWnd);
 		MemSaveIni();
+		RefreshPreviewText(hWnd);
 		break;
 	}
 	return TRUE;
 }
 
+INT_PTR OnCtlColorStaticStatusPreview(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	HDC hdcStatic = (HDC)wParam;
+	SetBkMode(hdcStatic, TRANSPARENT);
+	SetTextColor(hdcStatic, g_cf.rgbColors);
+	int sob[] = { BLACK_BRUSH,WHITE_BRUSH,GRAY_BRUSH,LTGRAY_BRUSH };
+	//SetBkColor(hdcStatic, RGB(0, 255, 0));//文字背景色，如果不设置BkMode为透明的话则需要设置此项
+	return GetStockObject(sob[ComboBox_GetCurSel(GetDlgItem(hWnd, IDC_COMBO_STATUS_BACKGROUND))]);//空白区背景色
+}
