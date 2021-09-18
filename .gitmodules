@@ -1,3 +1,15 @@
 [submodule "minhook"]
 	path = minhook
 	url = https://github.com/TsudaKageyu/minhook
+[submodule "DirectXTK"]
+	path = DirectXTK
+	url = https://github.com/Microsoft/DirectXTK
+[submodule "DirectXTex"]
+	path = DirectXTex
+	url = https://github.com/Microsoft/DirectXTex
+[submodule "glm"]
+	path = glm
+	url = https://github.com/g-truc/glm
+[submodule "freetype-windows-binaries"]
+	path = freetype-windows-binaries
+	url = https://github.com/ubawurinna/freetype-windows-binaries

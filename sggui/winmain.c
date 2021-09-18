@@ -125,9 +125,8 @@ int WINAPI _tWinMain(_In_ HINSTANCE hInst, _In_opt_ HINSTANCE hPrevInst, _In_ LP
 BOOL InitSpeedSlider(HWND hwnd)
 {
 	HWND hSlider = GetDlgItem(hwnd, IDC_SLIDER_SPEED);
-	SendMessage(hSlider, TBM_SETRANGE, FALSE, MAKELPARAM(0, 6));
-	SendMessage(hSlider, TBM_SETPOS, TRUE, 3);
-	SetDlgItemTextA(hwnd, IDC_STATIC_SPEED_TEXT, "1.00x");
+	SendMessage(hSlider, TBM_SETRANGE, FALSE, MAKELPARAM(0, 256));
+	SendMessage(hSlider, TBM_SETPOS, TRUE, 128);
 	return TRUE;
 }
 
@@ -136,12 +135,12 @@ void SetSpeedSlider(HWND hwnd, float speed)
 	char buf[16];
 	sprintf_s(buf, ARRAYSIZE(buf), "%.3fx", speed);
 	SetDlgItemTextA(hwnd, IDC_STATIC_SPEED_TEXT, buf);
-	SendMessage(GetDlgItem(hwnd, IDC_SLIDER_SPEED), TBM_SETPOS, TRUE, 3 + (int)log2f(speed));
+	SendMessage(GetDlgItem(hwnd, IDC_SLIDER_SPEED), TBM_SETPOS, TRUE, 128 + (int)log2f(speed));
 }
 
 float GetSpeedSlider(HWND hwnd)
 {
-	return powf(2.0f, (float)SendMessage(GetDlgItem(hwnd, IDC_SLIDER_SPEED), TBM_GETPOS, 0, 0) - 3);
+	return powf(2.0f, (float)SendMessage(GetDlgItem(hwnd, IDC_SLIDER_SPEED), TBM_GETPOS, 0, 0) - 128);
 }
 
 char _iniSaveIntBuf[16];
@@ -318,7 +317,7 @@ BOOL StartSpeedGear()
 			MessageBox(NULL, TEXT("无法加载 DLL 文件。"), NULL, MB_ICONERROR);
 			return FALSE;
 		}
-		HOOKPROC fProc = (HOOKPROC)GetProcAddress(hDll, "SGProc");
+		HOOKPROC fProc = (HOOKPROC)GetProcAddress(hDll, SPEEDGEAR_PROC_STR);
 		hHookSGList[i] = SetWindowsHookEx(hookType, fProc, hDll, 0);
 		if (hHookSGList[i] == NULL)
 		{
