@@ -1,13 +1,14 @@
+Ôªø//https://pastebin.com/f6d87dd03
 #include<Windows.h>
-#include<d3d9.h>
+#include"glad\glad.h"
 #include"..\minhook\include\MinHook.h"
 #include"..\sgshared\sgshared.h"
-#pragma comment(lib,"d3d9.lib")
+#include"custom_swapbuffers.h"
 
-#include"custom_present.h"
-
-typedef HRESULT(WINAPI* PFIDirect3DDevice9_Present)(LPDIRECT3DDEVICE9, LPCRECT, LPCRECT, HWND, const RGNDATA*);
-static PFIDirect3DDevice9_Present pfPresent = nullptr, pfOriginalPresent = nullptr;
+typedef BOOL(WINAPI*PFwglSwapBuffers)(HDC);
+typedef PFNGLVIEWPORTPROC PFglViewport;
+static PFwglSwapBuffers pfSwapBuffers = nullptr, pfOriginalSwapBuffers = nullptr;
+static PFglViewport pfViewport = nullptr, pfOriginalViewport = nullptr;
 
 static int SpeedGear_frameCounter = 0;
 #include <d3dkmthk.h>
@@ -52,25 +53,22 @@ D3DKMT_WAITFORVERTICALBLANKEVENT getVBlankHandle() {
 }
 
 D3DKMT_WAITFORVERTICALBLANKEVENT wv;
-bool wvget = true;
+BOOL wvget = true;
 
-HRESULT hrLastPresent = S_OK;
-
-//Present «STDCALLµ˜”√∑Ω Ω£¨÷ª–Ë∞—THIS÷∏’Î∑≈‘⁄µ⁄“ªœÓæÕø…∞¥∑«≥…‘±∫Ø ˝µ˜”√
-HRESULT __stdcall HookedIDirect3DDevice9_Present(LPDIRECT3DDEVICE9 pDevice, LPCRECT pSrc, LPCRECT pDest, HWND hwnd, const RGNDATA* pRgn)
+BOOL WINAPI HookedwglSwapBuffers(HDC p)
 {
-	CustomPresent(pDevice, hrLastPresent);
+	CustomSwapBuffers(p);
+	BOOL r = FALSE;
 	SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
-	//¥À ±∫Ø ˝±ª¿πΩÿ£¨÷ªƒ‹Õ®π˝÷∏’Îµ˜”√£¨∑Ò‘Ú“™œ»∞—HOOKπÿ±’£¨µ˜”√p->Present£¨‘Ÿø™∆ÙHOOK
 	if (pMem->hookSpeed >= 1.0f)
 	{
 		if (SpeedGear_frameCounter == 0)
-			hrLastPresent = pfOriginalPresent(pDevice, pSrc, pDest, hwnd, pRgn);
+			r = pfOriginalSwapBuffers(p);
 		SpeedGear_frameCounter = (SpeedGear_frameCounter + 1) % static_cast<int>(pMem->hookSpeed);
 	}
 	else
 	{
-		hrLastPresent = pfOriginalPresent(pDevice, pSrc, pDest, hwnd, pRgn);
+		r = pfOriginalSwapBuffers(p);
 		if (wvget)
 		{
 			wv = getVBlankHandle();
@@ -79,65 +77,58 @@ HRESULT __stdcall HookedIDirect3DDevice9_Present(LPDIRECT3DDEVICE9 pDevice, LPCR
 		for (int i = 0; i < (int)(1.0f / pMem->hookSpeed); i++)
 			D3DKMTWaitForVerticalBlankEvent(&wv);
 	}
-	return hrLastPresent;
+	return r;
 }
 
-PFIDirect3DDevice9_Present GetPresentVAddr()
+void WINAPI HookedglViewport(GLint x, GLint y, GLsizei width, GLsizei height)
 {
-	IDirect3D9* pD3D9 = Direct3DCreate9(D3D_SDK_VERSION);
-	if (!pD3D9)
-		return nullptr;
-	D3DPRESENT_PARAMETERS d3dpp;
-	ZeroMemory(&d3dpp, sizeof d3dpp);
-	d3dpp.BackBufferWidth = 800;
-	d3dpp.BackBufferHeight = 600;
-	d3dpp.BackBufferFormat = D3DFMT_A8R8G8B8;
-	d3dpp.BackBufferCount = 1;
-	d3dpp.MultiSampleType = D3DMULTISAMPLE_NONE;
-	d3dpp.MultiSampleQuality = 0;
-	d3dpp.SwapEffect = D3DSWAPEFFECT_DISCARD;
-	d3dpp.hDeviceWindow = GetDesktopWindow();
-	d3dpp.Windowed = TRUE;
-	d3dpp.EnableAutoDepthStencil = true;
-	d3dpp.AutoDepthStencilFormat = D3DFMT_D24S8;
-	d3dpp.Flags = 0;
-	d3dpp.FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;
-	d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
-	IDirect3DDevice9* pDevice;
-	D3DCAPS9 caps;
-	pD3D9->GetDeviceCaps(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &caps);
-	int vp;
-	if (caps.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT)
-		vp = D3DCREATE_HARDWARE_VERTEXPROCESSING;
-	else
-		vp = D3DCREATE_SOFTWARE_VERTEXPROCESSING;
-	if (FAILED(pD3D9->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, GetDesktopWindow(), vp, &d3dpp, &pDevice)))
-		return nullptr;
-	INT_PTR p = reinterpret_cast<INT_PTR*>(reinterpret_cast<INT_PTR*>(pDevice)[0])[17];//Õ®π˝¿‡∂®“Â≤Èø¥∫Ø ˝À˘‘⁄Œª÷√
-	pDevice->Release();
-	pD3D9->Release();
-	return reinterpret_cast<PFIDirect3DDevice9_Present>(p);
+	CustomViewport(x, y, width, height);
+	return pfOriginalViewport(x, y, width, height);
 }
 
-//µº≥ˆ“‘∑Ω±„‘⁄√ª”–DllMain ±µ˜”√
+void WINAPI OriginalViewport(int x, int y, int width, int height)
+{
+	return pfOriginalViewport(x, y, width, height);
+}
+
+PFwglSwapBuffers GetSwapBuffersAddr()
+{
+	return reinterpret_cast<PFwglSwapBuffers>(GetProcAddress(LoadLibrary(TEXT("OpenGL32.dll")), "wglSwapBuffers"));
+}
+
+PFglViewport GetViewportAddr()
+{
+	return reinterpret_cast<PFglViewport>(GetProcAddress(LoadLibrary(TEXT("OpenGL32.dll")), "glViewport"));
+}
+
+//ÂØºÂá∫‰ª•Êñπ‰æøÂú®Ê≤°ÊúâDllMainÊó∂Ë∞ÉÁî®
 extern "C" __declspec(dllexport) BOOL StartHook()
 {
-	pfPresent = reinterpret_cast<PFIDirect3DDevice9_Present>(GetPresentVAddr());
+	pfSwapBuffers = GetSwapBuffersAddr();
+	pfViewport = GetViewportAddr();
 	if (MH_Initialize() != MH_OK)
 		return FALSE;
-	if (MH_CreateHook(pfPresent, HookedIDirect3DDevice9_Present, reinterpret_cast<void**>(&pfOriginalPresent)) != MH_OK)
+	if (MH_CreateHook(pfSwapBuffers, HookedwglSwapBuffers, reinterpret_cast<void**>(&pfOriginalSwapBuffers)) != MH_OK)
 		return FALSE;
-	if (MH_EnableHook(pfPresent) != MH_OK)
+	if (MH_CreateHook(pfViewport, HookedglViewport, reinterpret_cast<void**>(&pfOriginalViewport)) != MH_OK)
+		return FALSE;
+	if (MH_EnableHook(pfSwapBuffers) != MH_OK)
+		return FALSE;
+	if (MH_EnableHook(pfViewport) != MH_OK)
 		return FALSE;
 	return TRUE;
 }
 
-//µº≥ˆ“‘∑Ω±„‘⁄√ª”–DllMain ±µ˜”√
+//ÂØºÂá∫‰ª•Êñπ‰æøÂú®Ê≤°ÊúâDllMainÊó∂Ë∞ÉÁî®
 extern "C" __declspec(dllexport) BOOL StopHook()
 {
-	if (MH_DisableHook(pfPresent) != MH_OK)
+	if (MH_DisableHook(pfViewport) != MH_OK)
 		return FALSE;
-	if (MH_RemoveHook(pfPresent) != MH_OK)
+	if (MH_DisableHook(pfSwapBuffers) != MH_OK)
+		return FALSE;
+	if (MH_RemoveHook(pfViewport) != MH_OK)
+		return FALSE;
+	if (MH_RemoveHook(pfSwapBuffers) != MH_OK)
 		return FALSE;
 	if (MH_Uninitialize() != MH_OK)
 		return FALSE;
@@ -166,7 +157,7 @@ BOOL WINAPI DllMain(HINSTANCE hInstDll, DWORD fdwReason, LPVOID lpvReserved)
 	return TRUE;
 }
 
-//SetWindowHookEx–Ë“™“ª∏ˆµº≥ˆ∫Ø ˝£¨∑Ò‘ÚDLL≤ªª·±ªº”‘ÿ
+//SetWindowHookExÈúÄË¶Å‰∏Ä‰∏™ÂØºÂá∫ÂáΩÊï∞ÔºåÂê¶ÂàôDLL‰∏ç‰ºöË¢´Âä†ËΩΩ
 extern "C" __declspec(dllexport) LRESULT WINAPI SPEEDGEAR_PROC(int code, WPARAM w, LPARAM l)
 {
 	return CallNextHookEx(NULL, code, w, l);

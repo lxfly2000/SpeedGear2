@@ -4,7 +4,11 @@
 #define SPEEDGEAR_MEMORY_MAPPING_NAME "SPEEDGEAR_SHARED_MEMORY"
 #define SPEEDGEAR_MAX_HOOK_PROCESS 8
 #define SPEEDGEAR_PROC SGProc
+#ifdef _WIN64
 #define SPEEDGEAR_PROC_STR _CRT_STRINGIZE(SPEEDGEAR_PROC)
+#else
+#define SPEEDGEAR_PROC_STR "_" _CRT_STRINGIZE(SPEEDGEAR_PROC) "@12"
+#endif
 
 typedef struct
 {
@@ -19,6 +23,7 @@ typedef struct
 	DWORD fontColor;
 	char fontName[32];
 	char statusFormat[256];
+	char fontPath[MAX_PATH];
 }SPEEDGEAR_SHARED_MEMORY;
 
 #define FONTHEIGHT_TO_POUND(fs) -MulDiv(fs,72,GetDeviceCaps(GetDC(NULL),LOGPIXELSY))

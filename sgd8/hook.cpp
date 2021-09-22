@@ -1,15 +1,13 @@
 #include<Windows.h>
-#include<d3d11.h>
+#include<d3d8.h>
 #include"..\minhook\include\MinHook.h"
 #include"..\sgshared\sgshared.h"
-#pragma comment(lib,"d3d11.lib")
+#pragma comment(lib,"d3d8.lib")
 
 #include"custom_present.h"
 
-typedef HRESULT(__stdcall* PFIDXGISwapChain_Present)(IDXGISwapChain*, UINT, UINT);
-typedef HRESULT(__stdcall* PFIDXGISwapChain_ResizeBuffers)(IDXGISwapChain*, UINT, UINT, UINT, DXGI_FORMAT, UINT);
-static PFIDXGISwapChain_Present pfPresent = nullptr, pfOriginalPresent = nullptr;
-static PFIDXGISwapChain_ResizeBuffers pfResizeBuffers = nullptr, pfOriginalResizeBuffers = nullptr;
+typedef HRESULT(WINAPI* PFIDirect3DDevice8_Present)(LPDIRECT3DDEVICE8, LPCRECT, LPCRECT,HWND,const RGNDATA*);
+static PFIDirect3DDevice8_Present pfPresent = nullptr, pfOriginalPresent = nullptr;
 
 static int SpeedGear_frameCounter = 0;
 #include <d3dkmthk.h>
@@ -59,20 +57,20 @@ bool wvget = true;
 HRESULT hrLastPresent = S_OK;
 
 //Present是STDCALL调用方式，只需把THIS指针放在第一项就可按非成员函数调用
-HRESULT __stdcall HookedIDXGISwapChain_Present(IDXGISwapChain* p, UINT SyncInterval, UINT Flags)
+HRESULT __stdcall HookedIDirect3DDevice8_Present(LPDIRECT3DDEVICE8 pDevice, LPCRECT pSrc, LPCRECT pDest, HWND hwnd, const RGNDATA* pRgn)
 {
-	CustomPresent(p);
+	CustomPresent(pDevice, hrLastPresent);
 	SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
 	//此时函数被拦截，只能通过指针调用，否则要先把HOOK关闭，调用p->Present，再开启HOOK
 	if (pMem->hookSpeed >= 1.0f)
 	{
 		if (SpeedGear_frameCounter == 0)
-			hrLastPresent = pfOriginalPresent(p, SyncInterval, Flags);
+			hrLastPresent = pfOriginalPresent(pDevice, pSrc, pDest, hwnd, pRgn);
 		SpeedGear_frameCounter = (SpeedGear_frameCounter + 1) % static_cast<int>(pMem->hookSpeed);
 	}
 	else
 	{
-		hrLastPresent = pfOriginalPresent(p, SyncInterval, Flags);
+		hrLastPresent = pfOriginalPresent(pDevice, pSrc, pDest, hwnd, pRgn);
 		if (wvget)
 		{
 			wv = getVBlankHandle();
@@ -84,65 +82,50 @@ HRESULT __stdcall HookedIDXGISwapChain_Present(IDXGISwapChain* p, UINT SyncInter
 	return hrLastPresent;
 }
 
-HRESULT __stdcall HookedIDXGISwapChain_ResizeBuffers(IDXGISwapChain* p, UINT BufferCount, UINT Width, UINT Height, DXGI_FORMAT NewFormat, UINT SwapChainFlags)
+PFIDirect3DDevice8_Present GetPresentVAddr()
 {
-	CustomResizeBuffers(p, BufferCount, Width, Height, NewFormat, SwapChainFlags);
-	return pfOriginalResizeBuffers(p, BufferCount, Width, Height, NewFormat, SwapChainFlags);
-}
-
-void GetPresentVAddr(PFIDXGISwapChain_Present* pPresent, PFIDXGISwapChain_ResizeBuffers* pResizeBuffers)
-{
-	ID3D11Device* pDevice;
-	D3D_FEATURE_LEVEL useLevel;
-	ID3D11DeviceContext* pContext;
-	IDXGISwapChain* pSC;
-	DXGI_SWAP_CHAIN_DESC sc_desc;
-	ZeroMemory(&sc_desc, sizeof sc_desc);
-	sc_desc.BufferCount = 1;
-	sc_desc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	sc_desc.BufferDesc.Width = 800;
-	sc_desc.BufferDesc.Height = 600;
-	sc_desc.BufferDesc.RefreshRate.Denominator = 1;
-	sc_desc.BufferDesc.RefreshRate.Numerator = 60;
-	sc_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	sc_desc.OutputWindow = GetDesktopWindow();
-	sc_desc.SampleDesc.Count = 1;
-	sc_desc.SampleDesc.Quality = 0;
-	sc_desc.Windowed = TRUE;
-	UINT device_flag =
-#ifdef _DEBUG
-		D3D11_CREATE_DEVICE_DEBUG;
-#else
-		0;
-#endif
-	D3D_FEATURE_LEVEL featureLevels[] = { D3D_FEATURE_LEVEL_11_0,D3D_FEATURE_LEVEL_10_1,D3D_FEATURE_LEVEL_10_0 };
-	//这个函数不能在DllMain中调用，必须新开一个线程
-	D3D11CreateDeviceAndSwapChain(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, device_flag, featureLevels, ARRAYSIZE(featureLevels), D3D11_SDK_VERSION,
-		&sc_desc, &pSC, &pDevice, &useLevel, &pContext);
-	//因为相同类的虚函数是共用的，所以只需创建一个该类的对象，通过指针就能获取到函数地址
-	//Present在VTable[8]的位置
-	INT_PTR pP = reinterpret_cast<INT_PTR*>(reinterpret_cast<INT_PTR*>(pSC)[0])[8];
-	INT_PTR pRB = reinterpret_cast<INT_PTR*>(reinterpret_cast<INT_PTR*>(pSC)[0])[13];
-	*pPresent = reinterpret_cast<PFIDXGISwapChain_Present>(pP);
-	*pResizeBuffers = reinterpret_cast<PFIDXGISwapChain_ResizeBuffers>(pRB);
-	pSC->Release();
-	pContext->Release();
+	IDirect3D8* pD3D8 = Direct3DCreate8(D3D_SDK_VERSION);
+	if (!pD3D8)
+		return nullptr;
+	D3DPRESENT_PARAMETERS d3dpp;
+	ZeroMemory(&d3dpp, sizeof d3dpp);
+	d3dpp.BackBufferWidth = 800;
+	d3dpp.BackBufferHeight = 600;
+	d3dpp.BackBufferFormat = D3DFMT_A8R8G8B8;
+	d3dpp.BackBufferCount = 1;
+	d3dpp.MultiSampleType = D3DMULTISAMPLE_NONE;
+	d3dpp.SwapEffect = D3DSWAPEFFECT_DISCARD;
+	d3dpp.hDeviceWindow = GetDesktopWindow();
+	d3dpp.Windowed = TRUE;
+	d3dpp.EnableAutoDepthStencil = true;
+	d3dpp.AutoDepthStencilFormat = D3DFMT_D24S8;
+	d3dpp.Flags = 0;
+	d3dpp.FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;
+	IDirect3DDevice8* pDevice;
+	D3DCAPS8 caps;
+	pD3D8->GetDeviceCaps(D3DADAPTER_DEFAULT,D3DDEVTYPE_HAL,&caps);
+	int vp;
+	if (caps.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT)
+		vp = D3DCREATE_HARDWARE_VERTEXPROCESSING;
+	else
+		vp = D3DCREATE_SOFTWARE_VERTEXPROCESSING;
+	if (FAILED(pD3D8->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, GetDesktopWindow(), vp, &d3dpp, &pDevice)))
+		return nullptr;
+	INT_PTR p = reinterpret_cast<INT_PTR*>(reinterpret_cast<INT_PTR*>(pDevice)[0])[15];//通过类定义查看函数所在位置
 	pDevice->Release();
+	pD3D8->Release();
+	return reinterpret_cast<PFIDirect3DDevice8_Present>(p);
 }
 
 //导出以方便在没有DllMain时调用
 extern "C" __declspec(dllexport) BOOL StartHook()
 {
-	GetPresentVAddr(&pfPresent, &pfResizeBuffers);
+	pfPresent = reinterpret_cast<PFIDirect3DDevice8_Present>(GetPresentVAddr());
 	if (MH_Initialize() != MH_OK)
 		return FALSE;
-	if (MH_CreateHook(pfPresent, HookedIDXGISwapChain_Present, reinterpret_cast<void**>(&pfOriginalPresent)) != MH_OK)
-		return FALSE;
-	if (MH_CreateHook(pfResizeBuffers, HookedIDXGISwapChain_ResizeBuffers, reinterpret_cast<void**>(&pfOriginalResizeBuffers)) != MH_OK)
+	if (MH_CreateHook(pfPresent, HookedIDirect3DDevice8_Present, reinterpret_cast<void**>(&pfOriginalPresent)) != MH_OK)
 		return FALSE;
 	if (MH_EnableHook(pfPresent) != MH_OK)
-		return FALSE;
-	if (MH_EnableHook(pfResizeBuffers) != MH_OK)
 		return FALSE;
 	return TRUE;
 }
@@ -150,11 +133,7 @@ extern "C" __declspec(dllexport) BOOL StartHook()
 //导出以方便在没有DllMain时调用
 extern "C" __declspec(dllexport) BOOL StopHook()
 {
-	if (MH_DisableHook(pfResizeBuffers) != MH_OK)
-		return FALSE;
 	if (MH_DisableHook(pfPresent) != MH_OK)
-		return FALSE;
-	if (MH_RemoveHook(pfResizeBuffers) != MH_OK)
 		return FALSE;
 	if (MH_RemoveHook(pfPresent) != MH_OK)
 		return FALSE;

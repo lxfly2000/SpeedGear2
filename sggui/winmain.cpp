@@ -324,6 +324,7 @@ BOOL MemReadIni()
 	INI_READ_STR("statusFormat", pMem->statusFormat, ARRAYSIZE(pMem->statusFormat));
 	pMem->statusPosition = INI_READ_INT("statusPosition");
 	INI_READ_STR("fontName", pMem->fontName, ARRAYSIZE(pMem->fontName));
+	INI_READ_STR("fontPath", pMem->fontPath, ARRAYSIZE(pMem->fontPath));
 	pMem->fontHeight = POUND_TO_FONTHEIGHT(INI_READ_INT("fontHeight"));
 	pMem->fontItalic = INI_READ_INT("fontItalic");
 	pMem->fontWeight = INI_READ_INT("fontWeight");
@@ -344,6 +345,7 @@ BOOL MemSaveIni()
 	INI_SAVE_STR("statusFormat", pMem->statusFormat);
 	INI_SAVE_INT("statusPosition", pMem->statusPosition);
 	INI_SAVE_STR("fontName", pMem->fontName);
+	INI_SAVE_STR("fontPath", pMem->fontPath);
 	INI_SAVE_INT("fontHeight", FONTHEIGHT_TO_POUND(pMem->fontHeight));
 	INI_SAVE_INT("fontItalic", pMem->fontItalic);
 	INI_SAVE_INT("fontWeight", pMem->fontWeight);
