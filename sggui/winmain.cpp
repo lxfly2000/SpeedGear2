@@ -7,6 +7,7 @@
 #include "resource.h"
 #include "../sgshared/sgshared.h"
 
+#include <thread>
 
 //MFC资源初始化补充代码
 
@@ -65,6 +66,12 @@ DECLCBK(OnComboStatusPosition);
 DECLCBK(OnComboStatusBackground);
 DECLCBK(OnComboStatusFormat);
 DECLCBK(OnPaint);
+DECLCBK(OnHotkeyOnOff);
+DECLCBK(OnHotkeyResetSpeed);
+DECLCBK(OnHotkeySpeedUp);
+DECLCBK(OnHotkeySlowDown);
+DECLCBK(OnHotkeySlightFaster);
+DECLCBK(OnHotkeySlightSlower);
 INT_PTR OnCtlColorStaticStatusPreview(HWND, UINT, WPARAM, LPARAM);
 
 INT_PTR CALLBACK DlgCallback(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -88,6 +95,12 @@ INT_PTR CALLBACK DlgCallback(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		case IDC_COMBO_STATUS_POSITION:ONCBK(OnComboStatusPosition);break;
 		case IDC_COMBO_STATUS_BACKGROUND:ONCBK(OnComboStatusBackground);break;
 		case IDC_COMBO_STATUS_FORMAT:ONCBK(OnComboStatusFormat);break;
+		case IDC_HOTKEY_ON_OFF:ONCBK(OnHotkeyOnOff);break;
+		case IDC_HOTKEY_RESET_SPEED:ONCBK(OnHotkeyResetSpeed);break;
+		case IDC_HOTKEY_SPEED_UP:ONCBK(OnHotkeySpeedUp);break;
+		case IDC_HOTKEY_SLOW_DOWN:ONCBK(OnHotkeySlowDown);break;
+		case IDC_HOTKEY_SLIGHT_FASTER:ONCBK(OnHotkeySlightFaster);break;
+		case IDC_HOTKEY_SLIGHT_SLOWER:ONCBK(OnHotkeySlightSlower);break;
 		}
 		break;
 	case WM_PAINT:ONCBK(OnPaint);break;
@@ -110,7 +123,7 @@ INT_PTR CALLBACK DlgCallback(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		}
 		break;
 	case WM_CTLCOLORSTATIC:
-		if (GetDlgCtrlID(lParam) == IDC_STATIC_STATUS_PREVIEW)
+		if (GetDlgCtrlID((HWND)lParam) == IDC_STATIC_STATUS_PREVIEW)
 			return OnCtlColorStaticStatusPreview(hWnd, msg, wParam, lParam);
 		break;
 	}
@@ -125,6 +138,46 @@ int WINAPI _tWinMain(_In_ HINSTANCE hInst, _In_opt_ HINSTANCE hPrevInst, _In_ LP
 
 
 //程序主要功能实现
+
+BOOL IsMyAppFocused()
+{
+	//获取我的进程PID
+	DWORD pid;
+	GetWindowThreadProcessId(GetActiveWindow(), &pid);
+	return pid == GetCurrentProcessId();
+}
+
+#define SPEEDGEAR_MIN_SPEED 0.125f
+#define SPEEDGEAR_MAX_SPEED 8.0f
+
+#define SPEEDGEAR_BEEP_SPEED_UP 1
+#define SPEEDGEAR_BEEP_SLOW_DOWN 2
+#define SPEEDGEAR_BEEP_ORIGINAL 0
+#define SPEEDGEAR_BEEP_ERROR 3
+#define SPEEDGEAR_BEEP_PREC_UP 4
+#define SPEEDGEAR_BEEP_PREC_DOWN 5
+
+#define SPEEDGEAR_PRECISE_ADJUSTMENT 0.125f
+
+void SpeedGearBeep(int type)
+{
+	if (!IsMyAppFocused())
+		return;
+	std::thread([](int type)
+		{
+			switch (type)
+			{
+			case SPEEDGEAR_BEEP_ORIGINAL:Beep(1000, 100); break;
+			case SPEEDGEAR_BEEP_SPEED_UP:Beep(2000, 100); break;
+			case SPEEDGEAR_BEEP_SLOW_DOWN:Beep(500, 100); break;
+			case SPEEDGEAR_BEEP_ERROR:default:Beep(750, 500); break;
+			case SPEEDGEAR_BEEP_PREC_UP:Beep(DWORD(1000 * (1 + SPEEDGEAR_PRECISE_ADJUSTMENT)), 100); break;
+			case SPEEDGEAR_BEEP_PREC_DOWN:Beep(DWORD(1000 * (1 - SPEEDGEAR_PRECISE_ADJUSTMENT)), 100); break;
+			}
+			if (type != SPEEDGEAR_BEEP_ERROR && type != SPEEDGEAR_BEEP_ORIGINAL)
+				Beep(DWORD(1000 * SpeedGear_GetSharedMemory()->hookSpeed), 100);
+		}, type).detach();
+}
 
 BOOL InitSpeedSlider(HWND hwnd)
 {
@@ -155,7 +208,21 @@ char _iniSaveIntBuf[16];
 
 LOGFONTA g_logFont = { 0 };
 CHOOSEFONTA g_cf = { sizeof(CHOOSEFONTA),0,0,&g_logFont,0,CF_INITTOLOGFONTSTRUCT | CF_EFFECTS | CF_SCREENFONTS,0 };
+HWND hMain;
 
+typedef struct
+{
+	BOOL hookIsOn;
+	WORD keyOnOff;
+	WORD keyResetSpeed;
+	WORD keySpeedUp;
+	WORD keySlowDown;
+	WORD keySlightFaster;
+	WORD keySlightSlower;
+}GUI_MEMORY;
+GUI_MEMORY guiMem;
+
+int GetEditComboBoxText(HWND hwndCtrl, char* pBuf, int len);
 void RefreshPreviewText(HWND hwnd)
 {
 	int p = ComboBox_GetCurSel(GetDlgItem(hwnd, IDC_COMBO_STATUS_POSITION));
@@ -205,8 +272,15 @@ BOOL GuiReadMem(HWND hwnd)
 
 	SetButtonFontText(hwnd);
 
-	CheckDlgButton(hwnd, IDC_CHECK_TURN_ON_OFF, pMem->hookIsOn);
+	CheckDlgButton(hwnd, IDC_CHECK_TURN_ON_OFF, guiMem.hookIsOn);
 	SetSpeedSlider(hwnd, pMem->hookSpeed);
+
+	SendMessage(GetDlgItem(hwnd, IDC_HOTKEY_ON_OFF), HKM_SETHOTKEY, (WPARAM)guiMem.keyOnOff, 0);
+	SendMessage(GetDlgItem(hwnd, IDC_HOTKEY_RESET_SPEED), HKM_SETHOTKEY, (WPARAM)guiMem.keyResetSpeed, 0);
+	SendMessage(GetDlgItem(hwnd, IDC_HOTKEY_SPEED_UP), HKM_SETHOTKEY, (WPARAM)guiMem.keySpeedUp, 0);
+	SendMessage(GetDlgItem(hwnd, IDC_HOTKEY_SLOW_DOWN), HKM_SETHOTKEY, (WPARAM)guiMem.keySlowDown, 0);
+	SendMessage(GetDlgItem(hwnd, IDC_HOTKEY_SLIGHT_FASTER), HKM_SETHOTKEY, (WPARAM)guiMem.keySlightFaster, 0);
+	SendMessage(GetDlgItem(hwnd, IDC_HOTKEY_SLIGHT_SLOWER), HKM_SETHOTKEY, (WPARAM)guiMem.keySlightSlower, 0);
 	return TRUE;
 }
 
@@ -231,8 +305,15 @@ BOOL GuiSaveMem(HWND hwnd)
 	pMem->fontHeight = g_logFont.lfHeight;
 	pMem->fontColor = g_cf.rgbColors;
 
-	pMem->hookIsOn = IsDlgButtonChecked(hwnd, IDC_CHECK_TURN_ON_OFF);
+	guiMem.hookIsOn = IsDlgButtonChecked(hwnd, IDC_CHECK_TURN_ON_OFF);
 	pMem->hookSpeed = GetSpeedSlider(hwnd);
+
+	guiMem.keyOnOff = (WORD)SendMessage(GetDlgItem(hwnd, IDC_HOTKEY_ON_OFF), HKM_GETHOTKEY, 0, 0);
+	guiMem.keyResetSpeed = (WORD)SendMessage(GetDlgItem(hwnd, IDC_HOTKEY_RESET_SPEED), HKM_GETHOTKEY, 0, 0);
+	guiMem.keySpeedUp = (WORD)SendMessage(GetDlgItem(hwnd, IDC_HOTKEY_SPEED_UP), HKM_GETHOTKEY, 0, 0);
+	guiMem.keySlowDown = (WORD)SendMessage(GetDlgItem(hwnd, IDC_HOTKEY_SLOW_DOWN), HKM_GETHOTKEY, 0, 0);
+	guiMem.keySlightFaster = (WORD)SendMessage(GetDlgItem(hwnd, IDC_HOTKEY_SLIGHT_FASTER), HKM_GETHOTKEY, 0, 0);
+	guiMem.keySlightSlower = (WORD)SendMessage(GetDlgItem(hwnd, IDC_HOTKEY_SLIGHT_SLOWER), HKM_GETHOTKEY, 0, 0);
 	return TRUE;
 }
 
@@ -247,6 +328,12 @@ BOOL MemReadIni()
 	pMem->fontItalic = INI_READ_INT("fontItalic");
 	pMem->fontWeight = INI_READ_INT("fontWeight");
 	pMem->fontColor = INI_READ_INT("fontColor");
+	guiMem.keyOnOff = INI_READ_INT("keyOnOff");
+	guiMem.keyResetSpeed = INI_READ_INT("keyResetSpeed");
+	guiMem.keySpeedUp = INI_READ_INT("keySpeedUp");
+	guiMem.keySlowDown = INI_READ_INT("keySlowDown");
+	guiMem.keySlightFaster = INI_READ_INT("keySlightFaster");
+	guiMem.keySlightSlower = INI_READ_INT("keySlightSlower");
 	return TRUE;
 }
 
@@ -261,10 +348,39 @@ BOOL MemSaveIni()
 	INI_SAVE_INT("fontItalic", pMem->fontItalic);
 	INI_SAVE_INT("fontWeight", pMem->fontWeight);
 	INI_SAVE_INT("fontColor", pMem->fontColor);
+	INI_SAVE_INT("keyOnOff", guiMem.keyOnOff);
+	INI_SAVE_INT("keyResetSpeed", guiMem.keyResetSpeed);
+	INI_SAVE_INT("keySpeedUp", guiMem.keySpeedUp);
+	INI_SAVE_INT("keySlowDown", guiMem.keySlowDown);
+	INI_SAVE_INT("keySlightFaster", guiMem.keySlightFaster);
+	INI_SAVE_INT("keySlightSlower", guiMem.keySlightSlower);
 	return TRUE;
 }
 
 HHOOK hHookKb = NULL;
+
+BOOL IsKeyPress(DWORD vk, WORD vc)
+{
+	if (HIBYTE(vc) & HOTKEYF_ALT)
+	{
+		if ((GetAsyncKeyState(VK_MENU) & 0x8000) == 0)
+			return FALSE;
+	}
+	if (HIBYTE(vc) & HOTKEYF_SHIFT)
+	{
+		if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) == 0)
+			return FALSE;
+	}
+	if (HIBYTE(vc) & HOTKEYF_CONTROL)
+	{
+		if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0)
+			return FALSE;
+	}
+	return LOBYTE(vc) == (vk & 0xFF);
+}
+
+BOOL StartSpeedGear();
+BOOL StopSpeedGear();
 
 LRESULT CALLBACK KbHookProc(int nCode,WPARAM wParam,LPARAM lParam)
 {
@@ -273,17 +389,88 @@ LRESULT CALLBACK KbHookProc(int nCode,WPARAM wParam,LPARAM lParam)
 		switch (wParam)
 		{
 		case WM_KEYUP:case WM_SYSKEYUP:
-		{
-			PKBDLLHOOKSTRUCT pk = (PKBDLLHOOKSTRUCT)lParam;
-			//TODO:pk->vkCode...
-		}
+			if (!IsMyAppFocused())
+			{
+				SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
+				PKBDLLHOOKSTRUCT pk = (PKBDLLHOOKSTRUCT)lParam;
+				if (IsKeyPress(pk->vkCode, guiMem.keyOnOff))
+				{
+					guiMem.hookIsOn = (guiMem.hookIsOn + 1) % 2;
+					GuiReadMem(hMain);
+					if (guiMem.hookIsOn)
+						StartSpeedGear();
+					else
+						StopSpeedGear();
+				}
+				else if (guiMem.hookIsOn)
+				{
+					if (IsKeyPress(pk->vkCode, guiMem.keyResetSpeed))
+					{
+						pMem->hookSpeed = 1.0f;
+						GuiReadMem(hMain);
+						SpeedGearBeep(SPEEDGEAR_BEEP_ORIGINAL);
+					}
+					else if (IsKeyPress(pk->vkCode, guiMem.keySpeedUp))
+					{
+						if (pMem->hookSpeed == SPEEDGEAR_MAX_SPEED)
+						{
+							SpeedGearBeep(SPEEDGEAR_BEEP_ERROR);
+						}
+						else
+						{
+							pMem->hookSpeed = min(pMem->hookSpeed * 2.0f, SPEEDGEAR_MAX_SPEED);
+							GuiReadMem(hMain);
+							SpeedGearBeep(SPEEDGEAR_BEEP_SPEED_UP);
+						}
+					}
+					else if (IsKeyPress(pk->vkCode, guiMem.keySlowDown))
+					{
+						if (pMem->hookSpeed == SPEEDGEAR_MIN_SPEED)
+						{
+							SpeedGearBeep(SPEEDGEAR_BEEP_ERROR);
+						}
+						else
+						{
+							pMem->hookSpeed = max(pMem->hookSpeed / 2.0f, SPEEDGEAR_MIN_SPEED);
+							GuiReadMem(hMain);
+							SpeedGearBeep(SPEEDGEAR_BEEP_SLOW_DOWN);
+						}
+					}
+					else if (IsKeyPress(pk->vkCode, guiMem.keySlightFaster))
+					{
+						if (pMem->hookSpeed == SPEEDGEAR_MAX_SPEED)
+						{
+							SpeedGearBeep(SPEEDGEAR_BEEP_ERROR);
+						}
+						else
+						{
+							pMem->hookSpeed = min(pMem->hookSpeed + SPEEDGEAR_PRECISE_ADJUSTMENT, SPEEDGEAR_MAX_SPEED);
+							GuiReadMem(hMain);
+							SpeedGearBeep(SPEEDGEAR_BEEP_PREC_UP);
+						}
+					}
+					else if (IsKeyPress(pk->vkCode, guiMem.keySlightSlower))
+					{
+						if (pMem->hookSpeed == SPEEDGEAR_MIN_SPEED)
+						{
+							SpeedGearBeep(SPEEDGEAR_BEEP_ERROR);
+						}
+						else
+						{
+							pMem->hookSpeed = max(pMem->hookSpeed - SPEEDGEAR_PRECISE_ADJUSTMENT, SPEEDGEAR_MIN_SPEED);
+							GuiReadMem(hMain);
+							SpeedGearBeep(SPEEDGEAR_BEEP_PREC_DOWN);
+						}
+					}
+				}
+			}
 			break;
 		}
 	}
 	return CallNextHookEx(hHookKb, nCode, wParam, lParam);
 }
 
-HHOOK hHookSGList[16] = { NULL };
+HHOOK hHookSGList[4] = { NULL };
 
 BOOL InitKbHook()
 {
@@ -298,7 +485,6 @@ BOOL ReleaseKbHook()
 	return UnhookWindowsHookEx(hHookKb);
 }
 
-BOOL StopSpeedGear();
 BOOL StartSpeedGear()
 {
 	int hookType = INI_READ_INT("hookType");
@@ -355,6 +541,7 @@ BOOL OnInitDialog(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	//调用MFC资源的初始化
 	OnMFCInitDialog(hWnd, msg, wParam, lParam);
+	hMain = hWnd;
 
 	InitSpeedSlider(hWnd);
 	ComboBox_SetCurSel(GetDlgItem(hWnd, IDC_COMBO_STATUS_BACKGROUND), 0);
@@ -364,7 +551,8 @@ BOOL OnInitDialog(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		MessageBox(hWnd, TEXT("创建共享内存失败。"), NULL, MB_ICONERROR);
 		return FALSE;
 	}
-	SpeedGear_GetSharedMemory()->hookSpeed = 1.0f;
+	SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
+	pMem->hookSpeed = 1.0f;
 	MemReadIni();
 	GuiReadMem(hWnd);
 	RefreshPreviewText(hWnd);
@@ -375,11 +563,13 @@ BOOL OnInitDialog(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 BOOL OnMinimize(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+	//TODO:最小化到托盘
 	return FALSE;
 }
 
 BOOL OnRestore(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+	//TODO:恢复窗口
 	return FALSE;
 }
 
@@ -397,11 +587,11 @@ BOOL OnCheckTurnOnOff(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	if (IsDlgButtonChecked(hWnd, IDC_CHECK_TURN_ON_OFF))
 	{
-		if (!StartSpeedGear(hWnd))
+		if (!StartSpeedGear())
 			CheckDlgButton(hWnd, IDC_CHECK_TURN_ON_OFF, BST_UNCHECKED);
 	}
 	else
-		StopSpeedGear(hWnd);
+		StopSpeedGear();
 	return FALSE;
 }
 
@@ -503,7 +693,7 @@ BOOL OnPaint(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	HWND hStatic = GetDlgItem(hWnd, IDC_STATIC_STATUS_PREVIEW);
 	HDC hdc = BeginPaint(hStatic, &ps);
 	int sob[] = { BLACK_BRUSH,WHITE_BRUSH,GRAY_BRUSH,LTGRAY_BRUSH };
-	HBRUSH hbr = GetStockObject(sob[ComboBox_GetCurSel(GetDlgItem(hWnd, IDC_COMBO_STATUS_BACKGROUND))]);
+	HBRUSH hbr = (HBRUSH)GetStockObject(sob[ComboBox_GetCurSel(GetDlgItem(hWnd, IDC_COMBO_STATUS_BACKGROUND))]);
 	RECT r;
 	GetClientRect(hStatic, &r);
 	FillRect(hdc, &r, hbr);
@@ -525,5 +715,65 @@ INT_PTR OnCtlColorStaticStatusPreview(HWND hWnd, UINT msg, WPARAM wParam, LPARAM
 	SetTextColor(hdcStatic, g_cf.rgbColors);
 	int sob[] = { BLACK_BRUSH,WHITE_BRUSH,GRAY_BRUSH,LTGRAY_BRUSH };
 	//SetBkColor(hdcStatic, RGB(0, 255, 0));//文字背景色，如果不设置BkMode为透明的话则需要设置此项
-	return GetStockObject(sob[ComboBox_GetCurSel(GetDlgItem(hWnd, IDC_COMBO_STATUS_BACKGROUND))]);//空白区背景色
+	return (INT_PTR)GetStockObject(sob[ComboBox_GetCurSel(GetDlgItem(hWnd, IDC_COMBO_STATUS_BACKGROUND))]);//空白区背景色
+}
+
+BOOL OnHotkeyOnOff(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	if (HIWORD(wParam) == EN_CHANGE)
+	{
+		GuiSaveMem(hWnd);
+		MemSaveIni();
+	}
+	return TRUE;
+}
+
+BOOL OnHotkeyResetSpeed(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	if (HIWORD(wParam) == EN_CHANGE)
+	{
+		GuiSaveMem(hWnd);
+		MemSaveIni();
+	}
+	return TRUE;
+}
+
+BOOL OnHotkeySpeedUp(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	if (HIWORD(wParam) == EN_CHANGE)
+	{
+		GuiSaveMem(hWnd);
+		MemSaveIni();
+	}
+	return TRUE;
+}
+
+BOOL OnHotkeySlowDown(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	if (HIWORD(wParam) == EN_CHANGE)
+	{
+		GuiSaveMem(hWnd);
+		MemSaveIni();
+	}
+	return TRUE;
+}
+
+BOOL OnHotkeySlightFaster(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	if (HIWORD(wParam) == EN_CHANGE)
+	{
+		GuiSaveMem(hWnd);
+		MemSaveIni();
+	}
+	return TRUE;
+}
+
+BOOL OnHotkeySlightSlower(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	if (HIWORD(wParam) == EN_CHANGE)
+	{
+		GuiSaveMem(hWnd);
+		MemSaveIni();
+	}
+	return TRUE;
 }

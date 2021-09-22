@@ -12,11 +12,6 @@ static PFIDXGISwapChain_Present pfPresent = nullptr, pfOriginalPresent = nullptr
 static PFIDXGISwapChain_ResizeBuffers pfResizeBuffers = nullptr, pfOriginalResizeBuffers = nullptr;
 static HMODULE hDllModule;
 
-DWORD GetDLLPath(LPTSTR path, DWORD max_length)
-{
-	return GetModuleFileName(hDllModule, path, max_length);
-}
-
 static int SpeedGear_frameCounter = 0;
 #include <d3dkmthk.h>
 D3DKMT_WAITFORVERTICALBLANKEVENT getVBlankHandle() {
@@ -68,12 +63,13 @@ HRESULT hrLastPresent = S_OK;
 HRESULT __stdcall HookedIDXGISwapChain_Present(IDXGISwapChain* p, UINT SyncInterval, UINT Flags)
 {
 	CustomPresent(p);
+	SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
 	//此时函数被拦截，只能通过指针调用，否则要先把HOOK关闭，调用p->Present，再开启HOOK
-	if (SpeedGear::GetCurrentSpeed() >= 1.0f)
+	if (pMem->hookSpeed >= 1.0f)
 	{
 		if (SpeedGear_frameCounter == 0)
 			hrLastPresent = pfOriginalPresent(p, SyncInterval, Flags);
-		SpeedGear_frameCounter = (SpeedGear_frameCounter + 1) % static_cast<int>(SpeedGear::GetCurrentSpeed());
+		SpeedGear_frameCounter = (SpeedGear_frameCounter + 1) % static_cast<int>(pMem->hookSpeed);
 	}
 	else
 	{
@@ -83,7 +79,7 @@ HRESULT __stdcall HookedIDXGISwapChain_Present(IDXGISwapChain* p, UINT SyncInter
 			wv = getVBlankHandle();
 			wvget = false;
 		}
-		for (int i = 0; i < (int)(1.0f / SpeedGear::GetCurrentSpeed()); i++)
+		for (int i = 0; i < (int)(1.0f / pMem->hookSpeed); i++)
 			D3DKMTWaitForVerticalBlankEvent(&wv);
 	}
 	return hrLastPresent;
@@ -168,16 +164,6 @@ extern "C" __declspec(dllexport) BOOL StopHook()
 	return TRUE;
 }
 
-extern "C" __declspec(dllexport) BOOL SpeedGear_StartHook()
-{
-	return SpeedGear::InitCustomTime();
-}
-
-extern "C" __declspec(dllexport) BOOL SpeedGear_StopHook()
-{
-	return SpeedGear::UninitCustomTime();
-}
-
 DWORD WINAPI TInitHook(LPVOID param)
 {
 	return StartHook();
@@ -190,12 +176,10 @@ BOOL WINAPI DllMain(HINSTANCE hInstDll, DWORD fdwReason, LPVOID lpvReserved)
 	{
 	case DLL_PROCESS_ATTACH:
 		DisableThreadLibraryCalls(hInstDll);
-		SpeedGear_StartHook();//消息钩子不能单独开线程使用
 		CreateThread(NULL, 0, TInitHook, NULL, 0, NULL);
 		break;
 	case DLL_PROCESS_DETACH:
 		StopHook();
-		SpeedGear_StopHook();
 		break;
 	case DLL_THREAD_ATTACH:break;
 	case DLL_THREAD_DETACH:break;

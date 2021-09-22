@@ -146,6 +146,9 @@
     <ProjectReference Include="..\minhook\build\VC16\libMinHook.vcxproj">
       <Project>{f142a341-5ee0-442d-a15f-98ae9b48dbae}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\sgshared\sgshared.vcxproj">
+      <Project>{050ea4cd-0996-4fda-93bb-5c9faf20d893}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

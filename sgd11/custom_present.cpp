@@ -1,9 +1,11 @@
 #include"custom_present.h"
 #include"ResLoader.h"
 #include"..\DirectXTK\Inc\SimpleMath.h"
+#include"..\sgshared\sgshared.h"
 #include<map>
 #include<string>
 #include<ctime>
+#include<atlconv.h>
 
 #ifdef _DEBUG
 #define C(x) if(FAILED(x)){MessageBox(NULL,TEXT(_CRT_STRINGIZE(x)),NULL,MB_ICONERROR);throw E_FAIL;}
@@ -11,251 +13,6 @@
 #define C(x) x
 #endif
 
-
-#include<sstream>
-#include<thread>
-
-#define SPEEDGEAR_HOTKEY_STICK_LSHIFT 1
-#define SPEEDGEAR_HOTKEY_STICK_RSHIFT 2
-#define SPEEDGEAR_HOTKEY_STICK_LCTRL 4
-#define SPEEDGEAR_HOTKEY_STICK_RCTRL 8
-#define SPEEDGEAR_HOTKEY_STICK_LALT 16
-#define SPEEDGEAR_HOTKEY_STICK_RALT 32
-
-#define SPEEDGEAR_MIN_SPEED 0.125f
-#define SPEEDGEAR_MAX_SPEED 8.0f
-
-#define SPEEDGEAR_BEEP_SPEED_UP 1
-#define SPEEDGEAR_BEEP_SLOW_DOWN 2
-#define SPEEDGEAR_BEEP_ORIGINAL 0
-#define SPEEDGEAR_BEEP_ERROR 3
-#define SPEEDGEAR_BEEP_PREC_UP 4
-#define SPEEDGEAR_BEEP_PREC_DOWN 5
-
-namespace SpeedGear
-{
-
-	float current_speed = 1.0f;
-	float fPreciseAdjustment = 0.25f;
-
-	DWORD vkSpeedUp, vkSpeedDown, vkPreciseSpeedUp, vkPreciseSpeedDown, vkSpeedReset;
-	int globalApply;
-
-	float GetCurrentSpeed()
-	{
-		return current_speed;
-	}
-
-
-	BOOL IsMyAppFocused()
-	{
-		//获取我的进程PID
-		DWORD pid;
-		GetWindowThreadProcessId(GetActiveWindow(), &pid);
-		return pid == GetCurrentProcessId();
-	}
-
-	void ParseKey(LPCTSTR str, DWORD* vk, DWORD* stick)
-	{
-		std::wistringstream iss(str);
-		iss >> *vk;
-		*stick = 0;
-		while (!iss.eof())
-		{
-			std::wstring inb;
-			iss >> inb;
-			if (_wcsicmp(inb.c_str(), L"lshift") == 0)
-				*stick |= SPEEDGEAR_HOTKEY_STICK_LSHIFT;
-			if (_wcsicmp(inb.c_str(), L"rshift") == 0)
-				*stick |= SPEEDGEAR_HOTKEY_STICK_RSHIFT;
-			if (_wcsicmp(inb.c_str(), L"lctrl") == 0)
-				*stick |= SPEEDGEAR_HOTKEY_STICK_LCTRL;
-			if (_wcsicmp(inb.c_str(), L"rctrl") == 0)
-				*stick |= SPEEDGEAR_HOTKEY_STICK_RCTRL;
-			if (_wcsicmp(inb.c_str(), L"lalt") == 0)
-				*stick |= SPEEDGEAR_HOTKEY_STICK_LALT;
-			if (_wcsicmp(inb.c_str(), L"ralt") == 0)
-				*stick |= SPEEDGEAR_HOTKEY_STICK_RALT;
-		}
-	}
-
-	class KeyManager
-	{
-	private:
-		std::map<DWORD, DWORD>hotkeys;
-	public:
-		void AddHotkey(DWORD key, DWORD sticks)
-		{
-			hotkeys.insert(std::make_pair(key, sticks));
-		}
-		//返回相应快捷键，如果无则返回0
-		DWORD IsHotkeyHit(DWORD key)
-		{
-			if (hotkeys.find(key) == hotkeys.end())
-				return 0;
-			DWORD sticks = hotkeys[key];
-			if ((sticks & SPEEDGEAR_HOTKEY_STICK_LSHIFT) && (GetAsyncKeyState(VK_LSHIFT) & 0x8000) == 0)
-				return 0;
-			if ((sticks & SPEEDGEAR_HOTKEY_STICK_RSHIFT) && (GetAsyncKeyState(VK_RSHIFT) & 0x8000) == 0)
-				return 0;
-			if ((sticks & SPEEDGEAR_HOTKEY_STICK_LCTRL) && (GetAsyncKeyState(VK_LCONTROL) & 0x8000) == 0)
-				return 0;
-			if ((sticks & SPEEDGEAR_HOTKEY_STICK_RCTRL) && (GetAsyncKeyState(VK_RCONTROL) & 0x8000) == 0)
-				return 0;
-			if ((sticks & SPEEDGEAR_HOTKEY_STICK_LALT) && (GetAsyncKeyState(VK_LMENU) & 0x8000) == 0)
-				return 0;
-			if ((sticks & SPEEDGEAR_HOTKEY_STICK_RALT) && (GetAsyncKeyState(VK_RMENU) & 0x8000) == 0)
-				return 0;
-			return key;
-		}
-		void Init()
-		{
-			hotkeys.clear();
-		}
-	};
-	static KeyManager km;
-	void SpeedGearBeep(int type)
-	{
-		if (!IsMyAppFocused())
-			return;
-		std::thread([](int type)
-			{
-				switch (type)
-				{
-				case SPEEDGEAR_BEEP_ORIGINAL:Beep(1000, 100); break;
-				case SPEEDGEAR_BEEP_SPEED_UP:Beep(2000, 100); break;
-				case SPEEDGEAR_BEEP_SLOW_DOWN:Beep(500, 100); break;
-				case SPEEDGEAR_BEEP_ERROR:default:Beep(750, 500); break;
-				case SPEEDGEAR_BEEP_PREC_UP:Beep(DWORD(1000 * (1 + fPreciseAdjustment)), 100); break;
-				case SPEEDGEAR_BEEP_PREC_DOWN:Beep(DWORD(1000 * (1 - fPreciseAdjustment)), 100); break;
-				}
-				if (type != SPEEDGEAR_BEEP_ERROR && type != SPEEDGEAR_BEEP_ORIGINAL)
-					Beep(DWORD(1000 * current_speed), 100);
-			}, type).detach();
-	}
-
-	void OnKeydown(DWORD vkCode)
-	{
-		DWORD hk = km.IsHotkeyHit(vkCode);
-		if (hk && (globalApply || IsMyAppFocused()))
-		{
-			if (hk == vkSpeedUp)
-			{
-				if (current_speed * 2.0f <= SPEEDGEAR_MAX_SPEED)
-				{
-					current_speed *= 2.0f;
-					SpeedGearBeep(SPEEDGEAR_BEEP_SPEED_UP);
-				}
-				else
-				{
-					SpeedGearBeep(SPEEDGEAR_BEEP_ERROR);
-				}
-			}
-			else if (hk == vkSpeedDown)
-			{
-				if (current_speed / 2.0f >= SPEEDGEAR_MIN_SPEED)
-				{
-					current_speed /= 2.0f;
-					SpeedGearBeep(SPEEDGEAR_BEEP_SLOW_DOWN);
-				}
-				else
-				{
-					SpeedGearBeep(SPEEDGEAR_BEEP_ERROR);
-				}
-			}
-			else if (hk == vkSpeedReset)
-			{
-				current_speed = 1.0f;
-				SpeedGearBeep(SPEEDGEAR_BEEP_ORIGINAL);
-			}
-			else if (hk == vkPreciseSpeedUp)
-			{
-				if (current_speed + fPreciseAdjustment <= SPEEDGEAR_MAX_SPEED)
-				{
-					current_speed += fPreciseAdjustment;
-					SpeedGearBeep(SPEEDGEAR_BEEP_PREC_UP);
-				}
-				else
-				{
-					SpeedGearBeep(SPEEDGEAR_BEEP_ERROR);
-				}
-			}
-			else if (hk == vkPreciseSpeedDown)
-			{
-				if (current_speed - fPreciseAdjustment >= SPEEDGEAR_MIN_SPEED)
-				{
-					current_speed -= fPreciseAdjustment;
-					SpeedGearBeep(SPEEDGEAR_BEEP_PREC_DOWN);
-				}
-				else
-				{
-					SpeedGearBeep(SPEEDGEAR_BEEP_ERROR);
-				}
-			}
-		}
-	}
-
-
-	LRESULT CALLBACK ProcessHook(int c, WPARAM w, LPARAM l)
-	{
-		if (c == HC_ACTION)
-		{
-			switch (w)
-			{
-			case WM_KEYUP:case WM_SYSKEYUP:
-				PKBDLLHOOKSTRUCT pk = (PKBDLLHOOKSTRUCT)l;
-				if ((pk->vkCode == VK_RETURN) && (pk->flags & LLKHF_EXTENDED))
-					pk->vkCode = VK_SEPARATOR;
-				OnKeydown(pk->vkCode);
-				break;
-			}
-		}
-		return CallNextHookEx(NULL, c, w, l);
-	}
-
-	static HHOOK hhook = nullptr;
-
-	BOOL InitCustomTime()
-	{
-		TCHAR szConfPath[MAX_PATH];
-		GetDLLPath(szConfPath, ARRAYSIZE(szConfPath));
-		lstrcpy(wcsrchr(szConfPath, '.'), TEXT(".ini"));
-#define GetInitConfStr(key,def) GetPrivateProfileString(TEXT("SpeedGear"),TEXT(_STRINGIZE(key)),def,key,ARRAYSIZE(key),szConfPath)
-#define GetInitConfInt(key,def) key=GetPrivateProfileInt(TEXT("SpeedGear"),TEXT(_STRINGIZE(key)),def,szConfPath)
-#define F(_i_str) (float)_wtof(_i_str)
-		TCHAR keySpeedUp[50], keySpeedDown[50], keyPreciseSpeedUp[50], keyPreciseSpeedDown[50], keySpeedReset[50], preciseAdjustment[20];
-		GetInitConfStr(keySpeedUp, TEXT("187"));
-		GetInitConfStr(keySpeedDown, TEXT("189"));
-		GetInitConfStr(keySpeedReset, TEXT("48"));
-		GetInitConfStr(keyPreciseSpeedUp, TEXT("221"));
-		GetInitConfStr(keyPreciseSpeedDown, TEXT("219"));
-		GetInitConfStr(preciseAdjustment, TEXT("0.25"));
-		GetInitConfInt(globalApply, 0);
-		km.Init();
-		DWORD vStick;
-		ParseKey(keySpeedUp, &vkSpeedUp, &vStick);
-		km.AddHotkey(vkSpeedUp, vStick);
-		ParseKey(keySpeedDown, &vkSpeedDown, &vStick);
-		km.AddHotkey(vkSpeedDown, vStick);
-		ParseKey(keySpeedReset, &vkSpeedReset, &vStick);
-		km.AddHotkey(vkSpeedReset, vStick);
-		ParseKey(keyPreciseSpeedUp, &vkPreciseSpeedUp, &vStick);
-		km.AddHotkey(vkPreciseSpeedUp, vStick);
-		ParseKey(keyPreciseSpeedDown, &vkPreciseSpeedDown, &vStick);
-		km.AddHotkey(vkPreciseSpeedDown, vStick);
-		fPreciseAdjustment = F(preciseAdjustment);
-
-		hhook = SetWindowsHookEx(WH_KEYBOARD_LL, ProcessHook, GetModuleHandle(NULL), 0);
-		return hhook != nullptr;
-	}
-
-	BOOL UninitCustomTime()
-	{
-		return UnhookWindowsHookEx(hhook);
-	}
-
-
-}
 
 class D2DCustomPresent
 {
@@ -266,14 +23,11 @@ private:
 	float textanchorpos_x, textanchorpos_y;
 	ID3D11DeviceContext* pContext;
 	unsigned t1, t2, fcount;
-	std::wstring display_text;
+	char display_text[256];
 	int current_fps;
-	TCHAR time_text[32], fps_text[32], width_text[32], height_text[32], speed_text[32];
+	int shad;
+	UINT period_frames;
 
-	TCHAR font_name[256], font_size[16], text_x[16], text_y[16], text_align[16], text_valign[16], display_text_fmt[256], fps_fmt[32], time_fmt[32], width_fmt[32], height_fmt[32], speed_fmt[32];
-	TCHAR font_red[16], font_green[16], font_blue[16], font_alpha[16];
-	TCHAR font_shadow_red[16], font_shadow_green[16], font_shadow_blue[16], font_shadow_alpha[16], font_shadow_distance[16];
-	int font_weight, period_frames;
 	DirectX::XMVECTOR calcColor, calcShadowColor;
 	DirectX::XMFLOAT2 calcShadowPos;
 	DXGI_SWAP_CHAIN_DESC sc_desc;
@@ -307,63 +61,37 @@ public:
 		m_pDevice = pDevice;
 		pDevice->GetImmediateContext(&pContext);
 		spriteBatch = std::make_unique<DirectX::SpriteBatch>(pContext);
+		SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
 
-		TCHAR szConfPath[MAX_PATH];
-		GetDLLPath(szConfPath, ARRAYSIZE(szConfPath));
-		lstrcpy(wcsrchr(szConfPath, '.'), TEXT(".ini"));
-#define GetInitConfStr(key,def) GetPrivateProfileString(TEXT("Init"),TEXT(_STRINGIZE(key)),def,key,ARRAYSIZE(key),szConfPath)
-#define GetInitConfInt(key,def) key=GetPrivateProfileInt(TEXT("Init"),TEXT(_STRINGIZE(key)),def,szConfPath)
-#define F(_i_str) (float)_wtof(_i_str)
-		GetInitConfStr(font_name, TEXT("宋体"));
-		GetInitConfStr(font_size, TEXT("48"));
-		GetInitConfStr(font_red, TEXT("1"));
-		GetInitConfStr(font_green, TEXT("1"));
-		GetInitConfStr(font_blue, TEXT("0"));
-		GetInitConfStr(font_alpha, TEXT("1"));
-		GetInitConfStr(font_shadow_red, TEXT("0.5"));
-		GetInitConfStr(font_shadow_green, TEXT("0.5"));
-		GetInitConfStr(font_shadow_blue, TEXT("0"));
-		GetInitConfStr(font_shadow_alpha, TEXT("1"));
-		GetInitConfStr(font_shadow_distance, TEXT("2"));
-		GetInitConfInt(font_weight, 400);
-		GetInitConfStr(text_x, TEXT("0"));
-		GetInitConfStr(text_y, TEXT("0"));
-		GetInitConfStr(text_align, TEXT("left"));
-		GetInitConfStr(text_valign, TEXT("top"));
-		GetInitConfInt(period_frames, 60);
-		GetInitConfStr(time_fmt, TEXT("%H:%M:%S"));
-		GetInitConfStr(fps_fmt, TEXT("FPS:%3d"));
-		GetInitConfStr(width_fmt, TEXT("%d"));
-		GetInitConfStr(height_fmt, TEXT("%d"));
-		GetInitConfStr(speed_fmt, TEXT("%.2f"));
-		GetInitConfStr(display_text_fmt, TEXT("{fps}"));
-
-		C(LoadFontFromSystem(m_pDevice, spriteFont, 1024, 1024, font_name, F(font_size),
-			D2D1::ColorF(D2D1::ColorF::White), (DWRITE_FONT_WEIGHT)font_weight));
+		USES_CONVERSION;
+		C(LoadFontFromSystem(m_pDevice, spriteFont, 1024, 1024, A2W(pMem->fontName), FONTHEIGHT_TO_POUND(pMem->fontHeight),
+			D2D1::ColorF(D2D1::ColorF::White), (DWRITE_FONT_WEIGHT)pMem->fontWeight));
 		C(pSC->GetDesc(&sc_desc));
 		float fWidth = (float)sc_desc.BufferDesc.Width, fHeight = (float)sc_desc.BufferDesc.Height;
-		textpos.x = F(text_x) * fWidth;
-		textpos.y = F(text_y) * fHeight;
-		if (lstrcmpi(text_align, TEXT("right")) == 0)
+		textpos.x = (pMem->statusPosition % 3) / 2.0f * fWidth;
+		textpos.y = (pMem->statusPosition / 3) / 2.0f * fHeight;
+		if (pMem->statusPosition % 3 == 2)
 			textanchorpos_x = 1.0f;
-		else if (lstrcmpi(text_align, TEXT("center")) == 0)
+		else if (pMem->statusPosition % 3 == 1)
 			textanchorpos_x = 0.5f;
-		else if (lstrcmpi(text_align, TEXT("left")) == 0)
+		else
 			textanchorpos_x = 0.0f;
-		else
-			textanchorpos_x = F(text_align);
-		if (lstrcmpi(text_valign, TEXT("bottom")) == 0)
+		if (pMem->statusPosition / 3 == 2)
 			textanchorpos_y = 1.0f;
-		else if (lstrcmpi(text_valign, TEXT("center")) == 0)
+		else if (pMem->statusPosition / 3 == 1)
 			textanchorpos_y = 0.5f;
-		else if (lstrcmpi(text_valign, TEXT("top")) == 0)
-			textanchorpos_y = 0.0f;
 		else
-			textanchorpos_y = F(text_valign);
-		calcShadowPos = DirectX::SimpleMath::Vector2(textpos.x + F(font_shadow_distance), textpos.y + F(font_shadow_distance));
-		DirectX::XMFLOAT4 xm = DirectX::XMFLOAT4(F(font_red), F(font_green), F(font_blue), F(font_alpha));
+			textanchorpos_y = 0.0f;
+		shad = DPI_SCALED_VALUE(sc_desc.OutputWindow, 2);
+		period_frames = sc_desc.BufferDesc.RefreshRate.Numerator / sc_desc.BufferDesc.RefreshRate.Denominator;
+		calcShadowPos = DirectX::SimpleMath::Vector2(textpos.x + shad, textpos.y + shad);
+		DirectX::XMFLOAT4 xm = DirectX::XMFLOAT4((pMem->fontColor & 0xFF) / 255.0f, ((pMem->fontColor >> 8) & 0xFF) / 255.0f,
+			((pMem->fontColor >> 16) & 0xFF) / 255.0f, 1.0f);
 		calcColor = DirectX::XMLoadFloat4(&xm);
-		xm = DirectX::XMFLOAT4(F(font_shadow_red), F(font_shadow_green), F(font_shadow_blue), F(font_shadow_alpha));
+		xm.x /= 2.0f;
+		xm.y /= 2.0f;
+		xm.z /= 2.0f;
+		xm.w /= 2.0f;
 		calcShadowColor = DirectX::XMLoadFloat4(&xm);
 
 		return TRUE;
@@ -376,9 +104,10 @@ public:
 		sc_desc.BufferDesc.Format = NewFormat;
 		sc_desc.Flags = SwapChainFlags;
 		float fWidth = (float)sc_desc.BufferDesc.Width, fHeight = (float)sc_desc.BufferDesc.Height;
-		textpos.x = F(text_x) * fWidth;
-		textpos.y = F(text_y) * fHeight;
-		calcShadowPos = DirectX::SimpleMath::Vector2(textpos.x + F(font_shadow_distance), textpos.y + F(font_shadow_distance));
+		SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
+		textpos.x = (pMem->statusPosition % 3) / 2.0f * fWidth;
+		textpos.y = (pMem->statusPosition / 3) / 2.0f * fHeight;
+		calcShadowPos = DirectX::SimpleMath::Vector2(textpos.x + shad, textpos.y + shad);
 	}
 	void Uninit()
 	{
@@ -397,33 +126,12 @@ public:
 			if (t1 == t2)
 				t1--;
 			current_fps = period_frames * 1000 / (t2 - t1);
-			wsprintf(fps_text, fps_fmt, current_fps);//注意wsprintf不支持浮点数格式化
 			time_t t1 = time(NULL);
 			tm tm1;
 			localtime_s(&tm1, &t1);
-			wcsftime(time_text, ARRAYSIZE(time_text), time_fmt, &tm1);
-			wsprintf(width_text, width_fmt, sc_desc.BufferDesc.Width);
-			wsprintf(height_text, height_fmt, sc_desc.BufferDesc.Height);
-			swprintf_s(speed_text, speed_fmt, SpeedGear::GetCurrentSpeed());
-			display_text = display_text_fmt;
-			size_t pos = display_text.find(TEXT("\\n"));
-			if (pos != std::wstring::npos)
-				display_text.replace(pos, 2, TEXT("\n"));
-			pos = display_text.find(TEXT("{fps}"));
-			if (pos != std::wstring::npos)
-				display_text.replace(pos, 5, fps_text);
-			pos = display_text.find(TEXT("{time}"));
-			if (pos != std::wstring::npos)
-				display_text.replace(pos, 6, time_text);
-			pos = display_text.find(TEXT("{width}"));
-			if (pos != std::wstring::npos)
-				display_text.replace(pos, 7, width_text);
-			pos = display_text.find(TEXT("{height}"));
-			if (pos != std::wstring::npos)
-				display_text.replace(pos, 8, height_text);
-			pos = display_text.find(TEXT("{speed}"));
-			if (pos != std::wstring::npos)
-				display_text.replace(pos, 7, speed_text);
+			SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
+			SpeedGear_FormatText(display_text, ARRAYSIZE(display_text), pMem->statusFormat, pMem->hookSpeed, current_fps,
+				sc_desc.BufferDesc.Width, sc_desc.BufferDesc.Height, tm1.tm_hour, tm1.tm_min, tm1.tm_sec);
 		}
 		//使用SpriteBatch会破坏之前的渲染器状态并且不会自动保存和恢复原状态，画图前应先保存原来的状态，完成后恢复
 		//参考：https://github.com/Microsoft/DirectXTK/wiki/SpriteBatch#state-management
@@ -457,10 +165,10 @@ public:
 #pragma endregion
 #pragma region 用SpriteBatch绘制
 		spriteBatch->Begin();
-		auto v = spriteFont->MeasureString(display_text.c_str());
+		auto v = spriteFont->MeasureString(display_text);
 		DirectX::XMFLOAT2 textanchorpos = { textanchorpos_x * DirectX::XMVectorGetX(v),textanchorpos_y * DirectX::XMVectorGetY(v) };
-		spriteFont->DrawString(spriteBatch.get(), display_text.c_str(), calcShadowPos, calcShadowColor, 0.0f, textanchorpos);
-		spriteFont->DrawString(spriteBatch.get(), display_text.c_str(), textpos, calcColor, 0.0f, textanchorpos);
+		spriteFont->DrawString(spriteBatch.get(), display_text, calcShadowPos, calcShadowColor, 0.0f, textanchorpos);
+		spriteFont->DrawString(spriteBatch.get(), display_text, textpos, calcColor, 0.0f, textanchorpos);
 		spriteBatch->End();
 #pragma endregion
 #pragma region 恢复原来的状态
