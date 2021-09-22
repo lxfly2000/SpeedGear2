@@ -161,8 +161,6 @@ BOOL IsMyAppFocused()
 
 void SpeedGearBeep(int type)
 {
-	if (!IsMyAppFocused())
-		return;
 	std::thread([](int type)
 		{
 			switch (type)
@@ -182,8 +180,8 @@ void SpeedGearBeep(int type)
 BOOL InitSpeedSlider(HWND hwnd)
 {
 	HWND hSlider = GetDlgItem(hwnd, IDC_SLIDER_SPEED);
-	SendMessage(hSlider, TBM_SETRANGE, FALSE, MAKELPARAM(0, 256));
-	SendMessage(hSlider, TBM_SETPOS, TRUE, 128);
+	SendMessage(hSlider, TBM_SETRANGE, FALSE, MAKELPARAM(0, 48));
+	SendMessage(hSlider, TBM_SETPOS, TRUE, 24);
 	return TRUE;
 }
 
@@ -192,12 +190,12 @@ void SetSpeedSlider(HWND hwnd, float speed)
 	char buf[16];
 	sprintf_s(buf, ARRAYSIZE(buf), "%.3f&x", speed);
 	SetDlgItemTextA(hwnd, IDC_BUTTON_SPEED_TEXT, buf);
-	SendMessage(GetDlgItem(hwnd, IDC_SLIDER_SPEED), TBM_SETPOS, TRUE, (LPARAM)(128.0f + log2f(speed) * 128.0f / 3.0f));
+	SendMessage(GetDlgItem(hwnd, IDC_SLIDER_SPEED), TBM_SETPOS, TRUE, (LPARAM)(24.0f + log2f(speed) * 24.0f / 3.0f));
 }
 
 float GetSpeedSlider(HWND hwnd)
 {
-	return powf(2.0f, (SendMessage(GetDlgItem(hwnd, IDC_SLIDER_SPEED), TBM_GETPOS, 0, 0) - 128.0f) * 3.0f / 128.0f);
+	return powf(2.0f, (SendMessage(GetDlgItem(hwnd, IDC_SLIDER_SPEED), TBM_GETPOS, 0, 0) - 24.0f) * 3.0f / 24.0f);
 }
 
 char _iniSaveIntBuf[16];
