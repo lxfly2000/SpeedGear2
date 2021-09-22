@@ -59,10 +59,12 @@ DECLCBK(OnSliderSpeed);
 DECLCBK(OnButtonModeHelp);
 DECLCBK(OnButtonStatusHelp);
 DECLCBK(OnButtonStatusFont);
+DECLCBK(OnButtonSpeedText);
 DECLCBK(OnComboMode);
 DECLCBK(OnComboStatusPosition);
 DECLCBK(OnComboStatusBackground);
 DECLCBK(OnComboStatusFormat);
+DECLCBK(OnPaint);
 INT_PTR OnCtlColorStaticStatusPreview(HWND, UINT, WPARAM, LPARAM);
 
 INT_PTR CALLBACK DlgCallback(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -81,12 +83,14 @@ INT_PTR CALLBACK DlgCallback(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		case IDC_BUTTON_MODE_HELP:ONCBK(OnButtonModeHelp);break;
 		case IDC_BUTTON_STATUS_HELP:ONCBK(OnButtonStatusHelp);break;
 		case IDC_BUTTON_STATUS_FONT:ONCBK(OnButtonStatusFont);break;
+		case IDC_BUTTON_SPEED_TEXT:ONCBK(OnButtonSpeedText);break;
 		case IDC_COMBO_MODE:ONCBK(OnComboMode);break;
 		case IDC_COMBO_STATUS_POSITION:ONCBK(OnComboStatusPosition);break;
 		case IDC_COMBO_STATUS_BACKGROUND:ONCBK(OnComboStatusBackground);break;
 		case IDC_COMBO_STATUS_FORMAT:ONCBK(OnComboStatusFormat);break;
 		}
 		break;
+	case WM_PAINT:ONCBK(OnPaint);break;
 	case WM_SYSCOMMAND:
 		switch (wParam)
 		{
@@ -133,14 +137,14 @@ BOOL InitSpeedSlider(HWND hwnd)
 void SetSpeedSlider(HWND hwnd, float speed)
 {
 	char buf[16];
-	sprintf_s(buf, ARRAYSIZE(buf), "%.3fx", speed);
-	SetDlgItemTextA(hwnd, IDC_STATIC_SPEED_TEXT, buf);
-	SendMessage(GetDlgItem(hwnd, IDC_SLIDER_SPEED), TBM_SETPOS, TRUE, 128 + (int)log2f(speed));
+	sprintf_s(buf, ARRAYSIZE(buf), "%.3f&x", speed);
+	SetDlgItemTextA(hwnd, IDC_BUTTON_SPEED_TEXT, buf);
+	SendMessage(GetDlgItem(hwnd, IDC_SLIDER_SPEED), TBM_SETPOS, TRUE, (LPARAM)(128.0f + log2f(speed) * 128.0f / 3.0f));
 }
 
 float GetSpeedSlider(HWND hwnd)
 {
-	return powf(2.0f, (float)SendMessage(GetDlgItem(hwnd, IDC_SLIDER_SPEED), TBM_GETPOS, 0, 0) - 128);
+	return powf(2.0f, (SendMessage(GetDlgItem(hwnd, IDC_SLIDER_SPEED), TBM_GETPOS, 0, 0) - 128.0f) * 3.0f / 128.0f);
 }
 
 char _iniSaveIntBuf[16];
@@ -169,7 +173,7 @@ void RefreshPreviewText(HWND hwnd)
 	case 2:SetWindowLong(hStatic, GWL_STYLE, GetWindowStyle(hStatic) | SS_CENTERIMAGE); break;
 	}
 	char text[256], fmttext[256];
-	GetEditComboBoxText(GetDlgItem(hwnd, IDC_COMBO_STATUS_FORMAT), text, ARRAYSIZE(text) - 1);
+	GetEditComboBoxText(GetDlgItem(hwnd, IDC_COMBO_STATUS_FORMAT), text, ARRAYSIZE(text));
 	SpeedGear_FormatText(fmttext, ARRAYSIZE(fmttext), text, 1.0f, 60, 800, 600, 9, 0, 0);
 	SetDlgItemTextA(hwnd, IDC_STATIC_STATUS_PREVIEW, fmttext);
 }
@@ -218,7 +222,7 @@ BOOL GuiSaveMem(HWND hwnd)
 {
 	SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
 	pMem->hookMode = ComboBox_GetCurSel(GetDlgItem(hwnd, IDC_COMBO_MODE));
-	GetEditComboBoxText(GetDlgItem(hwnd, IDC_COMBO_STATUS_FORMAT), pMem->statusFormat, ARRAYSIZE(pMem->statusFormat) - 1);
+	GetEditComboBoxText(GetDlgItem(hwnd, IDC_COMBO_STATUS_FORMAT), pMem->statusFormat, ARRAYSIZE(pMem->statusFormat));
 	pMem->statusPosition = ComboBox_GetCurSel(GetDlgItem(hwnd, IDC_COMBO_STATUS_POSITION));
 
 	lstrcpyA(pMem->fontName, g_logFont.lfFaceName);
@@ -236,9 +240,9 @@ BOOL MemReadIni()
 {
 	SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
 	pMem->hookMode = INI_READ_INT("hookMode");
-	INI_READ_STR("statusFormat", pMem->statusFormat, ARRAYSIZE(pMem->statusFormat) - 1);
+	INI_READ_STR("statusFormat", pMem->statusFormat, ARRAYSIZE(pMem->statusFormat));
 	pMem->statusPosition = INI_READ_INT("statusPosition");
-	INI_READ_STR("fontName", pMem->fontName, ARRAYSIZE(pMem->fontName) - 1);
+	INI_READ_STR("fontName", pMem->fontName, ARRAYSIZE(pMem->fontName));
 	pMem->fontHeight = POUND_TO_FONTHEIGHT(INI_READ_INT("fontHeight"));
 	pMem->fontItalic = INI_READ_INT("fontItalic");
 	pMem->fontWeight = INI_READ_INT("fontWeight");
@@ -404,8 +408,8 @@ BOOL OnCheckTurnOnOff(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 BOOL OnSliderSpeed(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	char buf[16];
-	sprintf_s(buf, ARRAYSIZE(buf), "%.3fx", GetSpeedSlider(hWnd));
-	SetDlgItemTextA(hWnd, IDC_STATIC_SPEED_TEXT, buf);
+	sprintf_s(buf, ARRAYSIZE(buf), "%.3f&x", GetSpeedSlider(hWnd));
+	SetDlgItemTextA(hWnd, IDC_BUTTON_SPEED_TEXT, buf);
 	GuiSaveMem(hWnd);
 	MemSaveIni();
 	return TRUE;
@@ -435,9 +439,17 @@ BOOL OnButtonStatusFont(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		SetButtonFontText(hWnd);
 		GuiSaveMem(hWnd);
 		MemSaveIni();
+		InvalidateRect(hWnd, NULL, FALSE);
 		return TRUE;
 	}
 	return FALSE;
+}
+
+BOOL OnButtonSpeedText(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	SpeedGear_GetSharedMemory()->hookSpeed = 1.0f;
+	SetSpeedSlider(hWnd, 1.0f);
+	return TRUE;
 }
 
 BOOL OnComboMode(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -456,12 +468,14 @@ BOOL OnComboStatusPosition(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	GuiSaveMem(hWnd);
 	MemSaveIni();
 	RefreshPreviewText(hWnd);
+	InvalidateRect(hWnd, NULL, FALSE);
 	return TRUE;
 }
 
 BOOL OnComboStatusBackground(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	RefreshPreviewText(hWnd);
+	InvalidateRect(hWnd, NULL, FALSE);
 	return TRUE;
 }
 
@@ -474,9 +488,34 @@ BOOL OnComboStatusFormat(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		GuiSaveMem(hWnd);
 		MemSaveIni();
 		RefreshPreviewText(hWnd);
+		InvalidateRect(hWnd, NULL, FALSE);
 		break;
 	}
 	return TRUE;
+}
+
+BOOL OnPaint(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	int pos = ComboBox_GetCurSel(GetDlgItem(hWnd, IDC_COMBO_STATUS_POSITION));
+	if (pos < 6)
+		return FALSE;
+	PAINTSTRUCT ps;
+	HWND hStatic = GetDlgItem(hWnd, IDC_STATIC_STATUS_PREVIEW);
+	HDC hdc = BeginPaint(hStatic, &ps);
+	int sob[] = { BLACK_BRUSH,WHITE_BRUSH,GRAY_BRUSH,LTGRAY_BRUSH };
+	HBRUSH hbr = GetStockObject(sob[ComboBox_GetCurSel(GetDlgItem(hWnd, IDC_COMBO_STATUS_BACKGROUND))]);
+	RECT r;
+	GetClientRect(hStatic, &r);
+	FillRect(hdc, &r, hbr);
+	char t[256];
+	GetDlgItemTextA(hWnd, IDC_STATIC_STATUS_PREVIEW, t, ARRAYSIZE(t));
+	SetBkMode(hdc, TRANSPARENT);
+	SetTextColor(hdc, g_cf.rgbColors);
+	HFONT hOldFont = SelectFont(hdc, CreateFontIndirectA(&g_logFont));
+	DrawTextA(hdc, t, lstrlenA(t), &r, DT_SINGLELINE | DT_BOTTOM | (pos - 6));
+	DeleteObject(SelectFont(hdc, hOldFont));
+	EndPaint(hStatic, &ps);
+	return FALSE;
 }
 
 INT_PTR OnCtlColorStaticStatusPreview(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)

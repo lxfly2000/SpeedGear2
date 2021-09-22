@@ -44,7 +44,7 @@ SPEEDGEAR_SHARED_MEMORY* SpeedGear_GetSharedMemory()
 
 BOOL IsFmtValid(const char* fmt)
 {
-    int ps = 0;
+    int ps = 0;//百分号状态 0:没有百分号 1:有百分号
     while (*fmt)
     {
         switch (ps)
