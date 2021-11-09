@@ -45,13 +45,17 @@ public:
 	BOOL Init(LPDIRECT3DDEVICE9 pDev)
 	{
 		Uninit();
+		if (!SpeedGear_InitializeSharedMemory(FALSE))
+			return FALSE;
 		SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
 
+		D3DDEVICE_CREATION_PARAMETERS dcp;
+		C(pDev->GetCreationParameters(&dcp));
 		D3DXFONT_DESC df;
 		ZeroMemory(&df, sizeof(D3DXFONT_DESC));
-		df.Height = pMem->fontHeight;
+		df.Height = pMem->useSystemDPI ? POUND_TO_FONTHEIGHT(dcp.hFocusWindow, pMem->fontSize) : FONTHEIGHT_TO_POUND_96DPI(pMem->fontSize);
 		df.Width = 0;
-		df.Weight = pMem->fontHeight;
+		df.Weight = pMem->fontWeight;
 		df.MipLevels = D3DX_DEFAULT;
 		df.Italic = false;
 		df.CharSet = DEFAULT_CHARSET;
@@ -82,9 +86,7 @@ public:
 		rText.top += (LONG)viewport.Y;
 		rText.right += (LONG)viewport.X;
 		rText.bottom += (LONG)viewport.Y;
-		D3DDEVICE_CREATION_PARAMETERS dcp;
-		C(pDev->GetCreationParameters(&dcp));
-		shad = DPI_SCALED_VALUE(dcp.hFocusWindow, 2);
+		shad = pMem->useSystemDPI ? DPI_SCALED_VALUE(dcp.hFocusWindow, 2) : 2;
 		rTextShadow.left = rText.left + (LONG)shad;
 		rTextShadow.top = rText.top + (LONG)shad;
 		rTextShadow.right = rText.right + (LONG)shad;
@@ -132,18 +134,32 @@ public:
 
 static std::map<LPDIRECT3DDEVICE9, D3DXCustomPresent> cp;
 
-void CustomPresent(LPDIRECT3DDEVICE9 p, HRESULT hrLast)
+void CustomPresent(LPDIRECT3DDEVICE9 p)
 {
 	if (cp.find(p) == cp.end())
 	{
-		if (hrLast == D3D_OK && p->TestCooperativeLevel() == D3D_OK)
-		{
-			cp.insert(std::make_pair(p, D3DXCustomPresent()));
-			cp[p].Init(p);
-		}
+		cp.insert(std::make_pair(p, D3DXCustomPresent()));
+		cp[p].Init(p);
 	}
-	else if (hrLast != D3D_OK || p->TestCooperativeLevel() != D3D_OK)
-		cp.erase(p);
-	else
-		cp[p].Draw();
+	cp[p].Draw();
+}
+
+void CustomPresentEx(LPDIRECT3DDEVICE9EX p)
+{
+	//TODO
+}
+
+void CustomReset(LPDIRECT3DDEVICE9 p, D3DPRESENT_PARAMETERS* m)
+{
+	//TODO
+}
+
+void CustomResetEx(LPDIRECT3DDEVICE9EX p, D3DPRESENT_PARAMETERS* m, D3DDISPLAYMODEEX* e)
+{
+	//TODO
+}
+
+void CustomSCPresent(LPDIRECT3DSWAPCHAIN9 p)
+{
+	//TODO
 }

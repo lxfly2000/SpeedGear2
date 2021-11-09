@@ -50,10 +50,14 @@ public:
 	{
 		Uninit();
 
+		if (!SpeedGear_InitializeSharedMemory(FALSE))
+			return FALSE;
 		SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
+		D3DDEVICE_CREATION_PARAMETERS dcp;
+		C(pDev->GetCreationParameters(&dcp));
 		LOGFONT df;
 		ZeroMemory(&df, sizeof(LOGFONT));
-		df.lfHeight = pMem->fontHeight;
+		df.lfHeight = pMem->useSystemDPI ? POUND_TO_FONTHEIGHT(dcp.hFocusWindow, pMem->fontSize) : POUND_TO_FONTHEIGHT_96DPI(pMem->fontSize);
 		df.lfWidth = 0;
 		df.lfWeight = pMem->fontWeight;
 		df.lfItalic = false;
@@ -85,9 +89,7 @@ public:
 		rText.top += (LONG)viewport.Y;
 		rText.right += (LONG)viewport.X;
 		rText.bottom += (LONG)viewport.Y;
-		D3DDEVICE_CREATION_PARAMETERS dcp;
-		C(pDev->GetCreationParameters(&dcp));
-		shad = DPI_SCALED_VALUE(dcp.hFocusWindow, 2);
+		shad = pMem->useSystemDPI ? DPI_SCALED_VALUE(dcp.hFocusWindow, 2) : 2;
 		rTextShadow.left = rText.left + (LONG)shad;
 		rTextShadow.top = rText.top + (LONG)shad;
 		rTextShadow.right = rText.right + (LONG)shad;
@@ -132,18 +134,22 @@ public:
 
 static std::map<LPDIRECT3DDEVICE8, D3DXCustomPresent> cp;
 
-void CustomPresent(LPDIRECT3DDEVICE8 p,HRESULT hrLast)
+void CustomPresent(LPDIRECT3DDEVICE8 p)
 {
 	if (cp.find(p) == cp.end())
 	{
-		if (hrLast == D3D_OK && p->TestCooperativeLevel() == D3D_OK)
-		{
-			cp.insert(std::make_pair(p, D3DXCustomPresent()));
-			cp[p].Init(p);
-		}
+		cp.insert(std::make_pair(p, D3DXCustomPresent()));
+		cp[p].Init(p);
 	}
-	else if (hrLast != D3D_OK || p->TestCooperativeLevel() != D3D_OK)
-		cp.erase(p);
-	else
-		cp[p].Draw();
+	cp[p].Draw();
+}
+
+void CustomReset(LPDIRECT3DDEVICE8 p, D3DPRESENT_PARAMETERS* m)
+{
+	//TODO
+}
+
+void CustomSCPresent(LPDIRECT3DSWAPCHAIN8 p)
+{
+	//TODO
 }

@@ -41,13 +41,16 @@ public:
 		windowrect.bottom = y+height;
 		calc_text_x = 0;
 		calc_text_y = 0;
-		shad = DPI_SCALED_VALUE(WindowFromDC(hdc), 2);
+		SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
+		shad = pMem->useSystemDPI ? DPI_SCALED_VALUE(WindowFromDC(hdc), 2) : 2;
 		calc_shadow_x = calc_text_x + shad;
 		calc_shadow_y = calc_text_y + shad;
 		ftdraw.ResizeWindow(width, height);
 	}
 	void Init(HDC dc)
 	{
+		if (!SpeedGear_InitializeSharedMemory(FALSE))
+			return;
 		SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
 		text_color = glm::vec4((pMem->fontColor & 0xFF) / 255.0f, ((pMem->fontColor >> 8) & 0xFF) / 255.0f, ((pMem->fontColor >> 16) & 0xFF) / 255.0f, 1.0f);
 		text_shadow_color = text_color;
@@ -78,7 +81,8 @@ public:
 			*posc = 0;
 			font_face_index = atoi(posc + 1);
 		}
-		ftdraw.Init(windowrect.right - windowrect.left, windowrect.bottom - windowrect.top, fn, font_face_index, -pMem->fontHeight, NULL);
+		ftdraw.Init(windowrect.right - windowrect.left, windowrect.bottom - windowrect.top, fn, font_face_index,
+			(UINT)-(pMem->useSystemDPI ? POUND_TO_FONTHEIGHT(WindowFromDC(dc), pMem->fontSize) : POUND_TO_FONTHEIGHT_96DPI(pMem->fontSize)), NULL);
 		DEVMODE dm;
 		EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm);
 		period_frames = dm.dmDisplayFrequency;
@@ -158,7 +162,6 @@ public:
 		glScissor(last_scissor_box[0], last_scissor_box[1], (GLsizei)last_scissor_box[2], (GLsizei)last_scissor_box[3]);
 #pragma endregion
 	}
-	WNDPROC oldwndproc;
 };
 
 static std::map<HDC, SwapBuffersDraw>cp;

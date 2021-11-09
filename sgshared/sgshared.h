@@ -17,8 +17,9 @@ typedef struct
 	float hookSpeed;
 	int hookMode;
 	int statusPosition;
+	BOOL useSystemDPI;
 	BOOL fontItalic;
-	LONG fontHeight;
+	DWORD fontSize;//Pound
 	DWORD fontWeight;
 	DWORD fontColor;
 	char fontName[32];
@@ -26,8 +27,10 @@ typedef struct
 	char fontPath[MAX_PATH];
 }SPEEDGEAR_SHARED_MEMORY;
 
-#define FONTHEIGHT_TO_POUND(fs) -MulDiv(fs,72,GetDeviceCaps(GetDC(NULL),LOGPIXELSY))
-#define POUND_TO_FONTHEIGHT(p) -MulDiv(p,GetDeviceCaps(GetDC(NULL),LOGPIXELSY),72)
+#define FONTHEIGHT_TO_POUND(hwnd,fs) -MulDiv(fs,72,GetDeviceCaps(GetDC(hwnd),LOGPIXELSY))
+#define POUND_TO_FONTHEIGHT(hwnd,p) -MulDiv(p,GetDeviceCaps(GetDC(hwnd),LOGPIXELSY),72)
+#define FONTHEIGHT_TO_POUND_96DPI(fs) -MulDiv(fs,72,USER_DEFAULT_SCREEN_DPI)
+#define POUND_TO_FONTHEIGHT_96DPI(p) -MulDiv(p,USER_DEFAULT_SCREEN_DPI,72)
 #define DPI_SCALED_VALUE(hwnd,x) MulDiv(x,GetDeviceCaps(GetDC(hwnd),LOGPIXELSY),USER_DEFAULT_SCREEN_DPI)
 
 #ifdef __cplusplus

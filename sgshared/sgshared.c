@@ -17,7 +17,8 @@ BOOL SpeedGear_InitializeSharedMemory(BOOL bCreate)
     pSgMem = (SPEEDGEAR_SHARED_MEMORY*)MapViewOfFile(hSgMemMap, FILE_MAP_ALL_ACCESS, 0, 0, 0);
     if (pSgMem == NULL)
         return FALSE;
-    ZeroMemory(pSgMem, sizeof(SPEEDGEAR_SHARED_MEMORY));
+    if (bCreate)
+        ZeroMemory(pSgMem, sizeof(SPEEDGEAR_SHARED_MEMORY));
     return TRUE;
 }
 

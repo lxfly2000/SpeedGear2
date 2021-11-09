@@ -22,16 +22,14 @@ HRESULT _check_hr = S_OK;
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
 
+#include "..\sgshared\sgshared.h"
+
 int PointToDip(int pointsize)
 {
 	//https://www.codeproject.com/articles/376597/outline-text-with-directwrite#source
 	//原则上第二个参数应为GetDeviceCaps(GetDC(NULL), LOGPIXELSX或LOGPIXELSY),但此处是用于游戏，且游戏通常不考虑DPI，因此直接指定96
-	return MulDiv(pointsize, USER_DEFAULT_SCREEN_DPI, 72);
-}
-
-float PointToDip(float pointsize)
-{
-	return pointsize * USER_DEFAULT_SCREEN_DPI / 72.0f;
+	BOOL b = SpeedGear_GetSharedMemory()->useSystemDPI;
+	return -(b ? POUND_TO_FONTHEIGHT(NULL, pointsize) : POUND_TO_FONTHEIGHT_96DPI(pointsize));
 }
 
 HRESULT LoadTextureFromFile(ID3D11Device* device, LPWSTR fpath, ID3D11ShaderResourceView** pTex, int* pw, int* ph, bool convertpmalpha)

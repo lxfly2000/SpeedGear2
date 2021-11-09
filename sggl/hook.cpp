@@ -59,12 +59,12 @@ BOOL WINAPI HookedwglSwapBuffers(HDC p)
 {
 	CustomSwapBuffers(p);
 	BOOL r = FALSE;
-	SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
-	if (pMem->hookSpeed >= 1.0f)
+	float capturedHookSpeed = SpeedGear_GetSharedMemory()->hookSpeed;//线程不安全变量
+	if (capturedHookSpeed >= 1.0f)
 	{
 		if (SpeedGear_frameCounter == 0)
 			r = pfOriginalSwapBuffers(p);
-		SpeedGear_frameCounter = (SpeedGear_frameCounter + 1) % static_cast<int>(pMem->hookSpeed);
+		SpeedGear_frameCounter = (SpeedGear_frameCounter + 1) % static_cast<int>(capturedHookSpeed);
 	}
 	else
 	{
@@ -74,7 +74,7 @@ BOOL WINAPI HookedwglSwapBuffers(HDC p)
 			wv = getVBlankHandle();
 			wvget = false;
 		}
-		for (int i = 0; i < (int)(1.0f / pMem->hookSpeed); i++)
+		for (int i = 0; i < (int)(1.0f / capturedHookSpeed); i++)
 			D3DKMTWaitForVerticalBlankEvent(&wv);
 	}
 	return r;

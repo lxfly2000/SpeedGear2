@@ -61,12 +61,13 @@ public:
 		m_pDevice = pDevice;
 		pDevice->GetImmediateContext(&pContext);
 		spriteBatch = std::make_unique<DirectX::SpriteBatch>(pContext);
+		if (!SpeedGear_InitializeSharedMemory(FALSE))
+			return FALSE;
 		SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
 
 		USES_CONVERSION;
-		C(LoadFontFromSystem(m_pDevice, spriteFont, 1024, 1024, A2W(pMem->fontName), FONTHEIGHT_TO_POUND(pMem->fontHeight),
-			D2D1::ColorF(D2D1::ColorF::White), (DWRITE_FONT_WEIGHT)pMem->fontWeight));
 		C(pSC->GetDesc(&sc_desc));
+		C(LoadFontFromSystem(m_pDevice, spriteFont, 1024, 1024, A2W(pMem->fontName), pMem->fontSize, D2D1::ColorF(D2D1::ColorF::White), (DWRITE_FONT_WEIGHT)pMem->fontWeight));
 		float fWidth = (float)sc_desc.BufferDesc.Width, fHeight = (float)sc_desc.BufferDesc.Height;
 		textpos.x = (pMem->statusPosition % 3) / 2.0f * fWidth;
 		textpos.y = (pMem->statusPosition / 3) / 2.0f * fHeight;
@@ -82,8 +83,8 @@ public:
 			textanchorpos_y = 0.5f;
 		else
 			textanchorpos_y = 0.0f;
-		shad = DPI_SCALED_VALUE(sc_desc.OutputWindow, 2);
-		period_frames = sc_desc.BufferDesc.RefreshRate.Numerator / sc_desc.BufferDesc.RefreshRate.Denominator;
+		shad = pMem->useSystemDPI ? DPI_SCALED_VALUE(sc_desc.OutputWindow, 2) : 2;
+		period_frames = sc_desc.BufferDesc.RefreshRate.Denominator / sc_desc.BufferDesc.RefreshRate.Numerator;
 		calcShadowPos = DirectX::SimpleMath::Vector2(textpos.x + shad, textpos.y + shad);
 		DirectX::XMFLOAT4 xm = DirectX::XMFLOAT4((pMem->fontColor & 0xFF) / 255.0f, ((pMem->fontColor >> 8) & 0xFF) / 255.0f,
 			((pMem->fontColor >> 16) & 0xFF) / 255.0f, 1.0f);

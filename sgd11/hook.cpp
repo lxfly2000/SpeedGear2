@@ -6,6 +6,7 @@
 
 #include"custom_present.h"
 
+//关于具体需要Hook哪些函数参考这篇文章：https://blog.csdn.net/fanxiushu/article/details/89426367
 typedef HRESULT(__stdcall* PFIDXGISwapChain_Present)(IDXGISwapChain*, UINT, UINT);
 typedef HRESULT(__stdcall* PFIDXGISwapChain_ResizeBuffers)(IDXGISwapChain*, UINT, UINT, UINT, DXGI_FORMAT, UINT);
 static PFIDXGISwapChain_Present pfPresent = nullptr, pfOriginalPresent = nullptr;
@@ -62,13 +63,13 @@ HRESULT hrLastPresent = S_OK;
 HRESULT __stdcall HookedIDXGISwapChain_Present(IDXGISwapChain* p, UINT SyncInterval, UINT Flags)
 {
 	CustomPresent(p);
-	SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
+	float capturedHookSpeed = SpeedGear_GetSharedMemory()->hookSpeed;//线程不安全变量
 	//此时函数被拦截，只能通过指针调用，否则要先把HOOK关闭，调用p->Present，再开启HOOK
-	if (pMem->hookSpeed >= 1.0f)
+	if (capturedHookSpeed >= 1.0f)
 	{
 		if (SpeedGear_frameCounter == 0)
 			hrLastPresent = pfOriginalPresent(p, SyncInterval, Flags);
-		SpeedGear_frameCounter = (SpeedGear_frameCounter + 1) % static_cast<int>(pMem->hookSpeed);
+		SpeedGear_frameCounter = (SpeedGear_frameCounter + 1) % static_cast<int>(capturedHookSpeed);
 	}
 	else
 	{
@@ -78,7 +79,7 @@ HRESULT __stdcall HookedIDXGISwapChain_Present(IDXGISwapChain* p, UINT SyncInter
 			wv = getVBlankHandle();
 			wvget = false;
 		}
-		for (int i = 0; i < (int)(1.0f / pMem->hookSpeed); i++)
+		for (int i = 0; i < (int)(1.0f / capturedHookSpeed); i++)
 			D3DKMTWaitForVerticalBlankEvent(&wv);
 	}
 	return hrLastPresent;

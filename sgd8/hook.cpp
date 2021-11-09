@@ -7,7 +7,11 @@
 #include"custom_present.h"
 
 typedef HRESULT(WINAPI* PFIDirect3DDevice8_Present)(LPDIRECT3DDEVICE8, LPCRECT, LPCRECT,HWND,const RGNDATA*);
+typedef HRESULT(WINAPI* PFIDirect3DDevice8_Reset)(LPDIRECT3DDEVICE8, D3DPRESENT_PARAMETERS*);
+typedef HRESULT(WINAPI* PFIDirect3DSwapChain8_Present)(LPDIRECT3DSWAPCHAIN8, LPCRECT, LPCRECT, HWND, const RGNDATA*);
 static PFIDirect3DDevice8_Present pfPresent = nullptr, pfOriginalPresent = nullptr;
+static PFIDirect3DDevice8_Reset pfReset = nullptr, pfOriginalReset = nullptr;
+static PFIDirect3DSwapChain8_Present pfSCPresent = nullptr, pfOriginalSCPresent = nullptr;
 
 static int SpeedGear_frameCounter = 0;
 #include <d3dkmthk.h>
@@ -54,19 +58,18 @@ D3DKMT_WAITFORVERTICALBLANKEVENT getVBlankHandle() {
 D3DKMT_WAITFORVERTICALBLANKEVENT wv;
 bool wvget = true;
 
-HRESULT hrLastPresent = S_OK;
-
 //Present是STDCALL调用方式，只需把THIS指针放在第一项就可按非成员函数调用
 HRESULT __stdcall HookedIDirect3DDevice8_Present(LPDIRECT3DDEVICE8 pDevice, LPCRECT pSrc, LPCRECT pDest, HWND hwnd, const RGNDATA* pRgn)
 {
-	CustomPresent(pDevice, hrLastPresent);
-	SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
+	HRESULT hrLastPresent = S_OK;
+	CustomPresent(pDevice);
+	float capturedHookSpeed = SpeedGear_GetSharedMemory()->hookSpeed;//线程不安全变量
 	//此时函数被拦截，只能通过指针调用，否则要先把HOOK关闭，调用p->Present，再开启HOOK
-	if (pMem->hookSpeed >= 1.0f)
+	if (capturedHookSpeed >= 1.0f)
 	{
 		if (SpeedGear_frameCounter == 0)
 			hrLastPresent = pfOriginalPresent(pDevice, pSrc, pDest, hwnd, pRgn);
-		SpeedGear_frameCounter = (SpeedGear_frameCounter + 1) % static_cast<int>(pMem->hookSpeed);
+		SpeedGear_frameCounter = (SpeedGear_frameCounter + 1) % static_cast<int>(capturedHookSpeed);
 	}
 	else
 	{
@@ -76,10 +79,22 @@ HRESULT __stdcall HookedIDirect3DDevice8_Present(LPDIRECT3DDEVICE8 pDevice, LPCR
 			wv = getVBlankHandle();
 			wvget = false;
 		}
-		for (int i = 0; i < (int)(1.0f / pMem->hookSpeed); i++)
+		for (int i = 0; i < (int)(1.0f / capturedHookSpeed); i++)
 			D3DKMTWaitForVerticalBlankEvent(&wv);
 	}
 	return hrLastPresent;
+}
+
+HRESULT WINAPI HookedIDirect3DDevice8_Reset(LPDIRECT3DDEVICE8 pDevice, D3DPRESENT_PARAMETERS* pParam)
+{
+	CustomReset(pDevice, pParam);
+	return pfOriginalReset(pDevice, pParam);
+}
+
+HRESULT WINAPI HookedIDirect3DSwapChain8_Present(LPDIRECT3DSWAPCHAIN8 pSC, LPCRECT pSrc, LPCRECT pDest, HWND hwnd, const RGNDATA*pRgn)
+{
+	CustomSCPresent(pSC);
+	return pfOriginalSCPresent(pSC, pSrc, pDest, hwnd, pRgn);
 }
 
 PFIDirect3DDevice8_Present GetPresentVAddr()

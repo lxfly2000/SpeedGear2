@@ -61,6 +61,7 @@ DECLCBK(OnButtonModeHelp);
 DECLCBK(OnButtonStatusHelp);
 DECLCBK(OnButtonStatusFont);
 DECLCBK(OnButtonSpeedText);
+DECLCBK(OnCheckUseSystemDPI);
 DECLCBK(OnComboMode);
 DECLCBK(OnComboStatusPosition);
 DECLCBK(OnComboStatusBackground);
@@ -91,6 +92,7 @@ INT_PTR CALLBACK DlgCallback(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		case IDC_BUTTON_STATUS_HELP:ONCBK(OnButtonStatusHelp);break;
 		case IDC_BUTTON_STATUS_FONT:ONCBK(OnButtonStatusFont);break;
 		case IDC_BUTTON_SPEED_TEXT:ONCBK(OnButtonSpeedText);break;
+		case IDC_CHECK_USE_SYSTEM_DPI:ONCBK(OnCheckUseSystemDPI);break;
 		case IDC_COMBO_MODE:ONCBK(OnComboMode);break;
 		case IDC_COMBO_STATUS_POSITION:ONCBK(OnComboStatusPosition);break;
 		case IDC_COMBO_STATUS_BACKGROUND:ONCBK(OnComboStatusBackground);break;
@@ -200,8 +202,10 @@ float GetSpeedSlider(HWND hwnd)
 
 char _iniSaveIntBuf[16];
 #define INI_READ_INT(key) GetPrivateProfileIntA("SpeedGear",key,0,".\\sg.ini")
+#define INI_READ_INT2(key,def) GetPrivateProfileIntA("SpeedGear",key,def,".\\sg.ini")
 #define INI_SAVE_INT(key,value) wsprintfA(_iniSaveIntBuf,"%d",value);WritePrivateProfileStringA("SpeedGear",key,_iniSaveIntBuf,".\\sg.ini")
 #define INI_READ_STR(key,pStr,szStr) GetPrivateProfileStringA("SpeedGear",key,"",pStr,szStr,".\\sg.ini")
+#define INI_READ_STR2(key,pStr,szStr,def) GetPrivateProfileStringA("SpeedGear",key,def,pStr,szStr,".\\sg.ini")
 #define INI_SAVE_STR(key,pStr) WritePrivateProfileStringA("SpeedGear",key,pStr,".\\sg.ini")
 
 LOGFONTA g_logFont = { 0 };
@@ -246,7 +250,7 @@ void RefreshPreviewText(HWND hwnd)
 void SetButtonFontText(HWND hwnd)
 {
 	char buf[256];
-	wsprintfA(buf, "×ÖÌåÉèÖÃ(&T) [%s,%d%s,%d,#%06X]", g_logFont.lfFaceName, g_logFont.lfWeight, g_logFont.lfItalic ? ",ÇãÐ±" : "", FONTHEIGHT_TO_POUND(g_logFont.lfHeight), g_cf.rgbColors);
+	wsprintfA(buf, "×ÖÌåÉèÖÃ(&T) [%s,%d%s,%d,#%06X]", g_logFont.lfFaceName, g_logFont.lfWeight, g_logFont.lfItalic ? ",ÇãÐ±" : "", FONTHEIGHT_TO_POUND(hwnd,g_logFont.lfHeight), g_cf.rgbColors);
 	if (lstrlenA(g_logFont.lfFaceName) == 0)
 		*strchr(buf, ' ') = 0;
 	SetDlgItemTextA(hwnd, IDC_BUTTON_STATUS_FONT, buf);
@@ -265,10 +269,11 @@ BOOL GuiReadMem(HWND hwnd)
 	lstrcpyA(g_logFont.lfFaceName, pMem->fontName);
 	g_logFont.lfWeight = pMem->fontWeight;
 	g_logFont.lfItalic = pMem->fontItalic;
-	g_logFont.lfHeight = pMem->fontHeight;
+	g_logFont.lfHeight = POUND_TO_FONTHEIGHT(hwnd,pMem->fontSize);
 	g_cf.rgbColors = pMem->fontColor;
 
 	SetButtonFontText(hwnd);
+	CheckDlgButton(hwnd, IDC_CHECK_USE_SYSTEM_DPI, pMem->useSystemDPI);
 
 	CheckDlgButton(hwnd, IDC_CHECK_TURN_ON_OFF, guiMem.hookIsOn);
 	SetSpeedSlider(hwnd, pMem->hookSpeed);
@@ -300,8 +305,9 @@ BOOL GuiSaveMem(HWND hwnd)
 	lstrcpyA(pMem->fontName, g_logFont.lfFaceName);
 	pMem->fontWeight = g_logFont.lfWeight;
 	pMem->fontItalic = g_logFont.lfItalic;
-	pMem->fontHeight = g_logFont.lfHeight;
+	pMem->fontSize = FONTHEIGHT_TO_POUND(hwnd, g_logFont.lfHeight);
 	pMem->fontColor = g_cf.rgbColors;
+	pMem->useSystemDPI = IsDlgButtonChecked(hwnd, IDC_CHECK_USE_SYSTEM_DPI);
 
 	guiMem.hookIsOn = IsDlgButtonChecked(hwnd, IDC_CHECK_TURN_ON_OFF);
 	pMem->hookSpeed = GetSpeedSlider(hwnd);
@@ -318,15 +324,16 @@ BOOL GuiSaveMem(HWND hwnd)
 BOOL MemReadIni()
 {
 	SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
-	pMem->hookMode = INI_READ_INT("hookMode");
-	INI_READ_STR("statusFormat", pMem->statusFormat, ARRAYSIZE(pMem->statusFormat));
+	pMem->hookMode = INI_READ_INT2("hookMode",1);
+	INI_READ_STR2("statusFormat", pMem->statusFormat, ARRAYSIZE(pMem->statusFormat),"FPS:{fps:%3d}");
 	pMem->statusPosition = INI_READ_INT("statusPosition");
-	INI_READ_STR("fontName", pMem->fontName, ARRAYSIZE(pMem->fontName));
-	INI_READ_STR("fontPath", pMem->fontPath, ARRAYSIZE(pMem->fontPath));
-	pMem->fontHeight = POUND_TO_FONTHEIGHT(INI_READ_INT("fontHeight"));
+	INI_READ_STR2("fontName", pMem->fontName, ARRAYSIZE(pMem->fontName),"ËÎÌå");
+	INI_READ_STR2("fontPath", pMem->fontPath, ARRAYSIZE(pMem->fontPath),"C:\\Windows\\Fonts\\SimSun.ttc:0");
+	pMem->useSystemDPI = INI_READ_INT2("useSystemDPI",TRUE);
+	pMem->fontSize = INI_READ_INT2("fontSize",24);
 	pMem->fontItalic = INI_READ_INT("fontItalic");
-	pMem->fontWeight = INI_READ_INT("fontWeight");
-	pMem->fontColor = INI_READ_INT("fontColor");
+	pMem->fontWeight = INI_READ_INT2("fontWeight",400);
+	pMem->fontColor = INI_READ_INT2("fontColor",0x0000FFFF);
 	guiMem.keyOnOff = INI_READ_INT("keyOnOff");
 	guiMem.keyResetSpeed = INI_READ_INT("keyResetSpeed");
 	guiMem.keySpeedUp = INI_READ_INT("keySpeedUp");
@@ -344,10 +351,11 @@ BOOL MemSaveIni()
 	INI_SAVE_INT("statusPosition", pMem->statusPosition);
 	INI_SAVE_STR("fontName", pMem->fontName);
 	INI_SAVE_STR("fontPath", pMem->fontPath);
-	INI_SAVE_INT("fontHeight", FONTHEIGHT_TO_POUND(pMem->fontHeight));
+	INI_SAVE_INT("fontSize", pMem->fontSize);
 	INI_SAVE_INT("fontItalic", pMem->fontItalic);
 	INI_SAVE_INT("fontWeight", pMem->fontWeight);
 	INI_SAVE_INT("fontColor", pMem->fontColor);
+	INI_SAVE_INT("useSystemDPI", pMem->useSystemDPI);
 	INI_SAVE_INT("keyOnOff", guiMem.keyOnOff);
 	INI_SAVE_INT("keyResetSpeed", guiMem.keyResetSpeed);
 	INI_SAVE_INT("keySpeedUp", guiMem.keySpeedUp);
@@ -639,6 +647,13 @@ BOOL OnButtonSpeedText(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	SpeedGear_GetSharedMemory()->hookSpeed = 1.0f;
 	SetSpeedSlider(hWnd, 1.0f);
+	return TRUE;
+}
+
+BOOL OnCheckUseSystemDPI(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	GuiSaveMem(hWnd);
+	MemSaveIni();
 	return TRUE;
 }
 
