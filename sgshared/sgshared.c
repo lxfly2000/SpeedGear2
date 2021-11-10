@@ -64,7 +64,7 @@ BOOL IsFmtValid(const char* fmt)
     return ps == 0;
 }
 
-char* SpeedGear_FormatText(char* buf, int len, const char* fmt, float speed, int fps, int width, int height, int hour, int minute, int second)
+char* SpeedGear_FormatText(char* buf, int len, const char* fmt, float speed, int fps, int width, int height, int hour, int minute, int second,const char*api)
 {
     if (buf == fmt)
         return NULL;
@@ -150,6 +150,10 @@ char* SpeedGear_FormatText(char* buf, int len, const char* fmt, float speed, int
                         sprintf_s(kwstr, ARRAYSIZE(kwstr), "%d", second);
                     else if (IsFmtValid(kwfmt))
                         sprintf_s(kwstr, ARRAYSIZE(kwstr), kwfmt, second);
+                }
+                else if (lstrcmpA(kwbuf, "api") == 0)
+                {
+                    lstrcpyA(kwstr, api);
                 }
                 posBuf += lstrlenA(kwstr);
                 lstrcatA(buf, kwstr);

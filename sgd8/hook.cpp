@@ -104,11 +104,11 @@ HRESULT WINAPI HookedIDirect3DSwapChain8_Present(LPDIRECT3DSWAPCHAIN8 pSC, LPCRE
 	return pfOriginalSCPresent(pSC, pSrc, pDest, hwnd, pRgn);
 }
 
-PFIDirect3DDevice8_Present GetPresentVAddr()
+BOOL GetPresentVAddr(PFIDirect3DDevice8_Present* pPresent, PFIDirect3DDevice8_Reset* pReset, PFIDirect3DSwapChain8_Present* pSCPresent)
 {
 	IDirect3D8* pD3D8 = Direct3DCreate8(D3D_SDK_VERSION);
 	if (!pD3D8)
-		return nullptr;
+		return FALSE;
 	D3DPRESENT_PARAMETERS d3dpp;
 	ZeroMemory(&d3dpp, sizeof d3dpp);
 	d3dpp.BackBufferWidth = 800;
@@ -132,22 +132,40 @@ PFIDirect3DDevice8_Present GetPresentVAddr()
 	else
 		vp = D3DCREATE_SOFTWARE_VERTEXPROCESSING;
 	if (FAILED(pD3D8->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, GetDesktopWindow(), vp, &d3dpp, &pDevice)))
-		return nullptr;
-	INT_PTR p = reinterpret_cast<INT_PTR*>(reinterpret_cast<INT_PTR*>(pDevice)[0])[15];//通过类定义查看函数所在位置
+		return FALSE;
+	IDirect3DSwapChain8* pSC = nullptr;
+	if (FAILED(pDevice->CreateAdditionalSwapChain(&d3dpp, &pSC)))
+		return FALSE;
+	INT_PTR pP = reinterpret_cast<INT_PTR*>(reinterpret_cast<INT_PTR*>(pDevice)[0])[15];//通过类定义查看函数所在位置
+	INT_PTR pR = reinterpret_cast<INT_PTR*>(reinterpret_cast<INT_PTR*>(pDevice)[0])[14];
+	INT_PTR pSCP = reinterpret_cast<INT_PTR*>(reinterpret_cast<INT_PTR*>(pSC)[0])[3];
 	pDevice->Release();
 	pD3D8->Release();
-	return reinterpret_cast<PFIDirect3DDevice8_Present>(p);
+	pSC->Release();
+	*pPresent = reinterpret_cast<PFIDirect3DDevice8_Present>(pP);
+	*pReset = reinterpret_cast<PFIDirect3DDevice8_Reset>(pR);
+	*pSCPresent = reinterpret_cast<PFIDirect3DSwapChain8_Present>(pSCP);
+	return TRUE;
 }
 
 //导出以方便在没有DllMain时调用
 extern "C" __declspec(dllexport) BOOL StartHook()
 {
-	pfPresent = reinterpret_cast<PFIDirect3DDevice8_Present>(GetPresentVAddr());
+	if (!GetPresentVAddr(&pfPresent, &pfReset, &pfSCPresent))
+		return FALSE;
 	if (MH_Initialize() != MH_OK)
 		return FALSE;
 	if (MH_CreateHook(pfPresent, HookedIDirect3DDevice8_Present, reinterpret_cast<void**>(&pfOriginalPresent)) != MH_OK)
 		return FALSE;
+	if (MH_CreateHook(pfReset, HookedIDirect3DDevice8_Reset, reinterpret_cast<void**>(&pfOriginalReset)) != MH_OK)
+		return FALSE;
+	if (MH_CreateHook(pfSCPresent, HookedIDirect3DSwapChain8_Present, reinterpret_cast<void**>(&pfOriginalSCPresent)) != MH_OK)
+		return FALSE;
 	if (MH_EnableHook(pfPresent) != MH_OK)
+		return FALSE;
+	if (MH_EnableHook(pfReset) != MH_OK)
+		return FALSE;
+	if (MH_EnableHook(pfSCPresent) != MH_OK)
 		return FALSE;
 	return TRUE;
 }
@@ -157,7 +175,15 @@ extern "C" __declspec(dllexport) BOOL StopHook()
 {
 	if (MH_DisableHook(pfPresent) != MH_OK)
 		return FALSE;
+	if (MH_DisableHook(pfReset) != MH_OK)
+		return FALSE;
+	if (MH_DisableHook(pfSCPresent) != MH_OK)
+		return FALSE;
 	if (MH_RemoveHook(pfPresent) != MH_OK)
+		return FALSE;
+	if (MH_RemoveHook(pfReset) != MH_OK)
+		return FALSE;
+	if (MH_RemoveHook(pfSCPresent) != MH_OK)
 		return FALSE;
 	if (MH_Uninitialize() != MH_OK)
 		return FALSE;

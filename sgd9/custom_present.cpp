@@ -129,7 +129,7 @@ public:
 			localtime_s(&tm1, &t1);
 			SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
 			SpeedGear_FormatText(display_text, ARRAYSIZE(display_text), pMem->statusFormat, pMem->hookSpeed, current_fps,
-				viewport.Width, viewport.Height, tm1.tm_hour, tm1.tm_min, tm1.tm_sec);
+				viewport.Width, viewport.Height, tm1.tm_hour, tm1.tm_min, tm1.tm_sec,"D3D9");
 		}
 		pFont->DrawTextA(NULL, display_text, lstrlenA(display_text), &rTextShadow, formatFlag, color_shadow);
 		pFont->DrawTextA(NULL, display_text, lstrlenA(display_text), &rText, formatFlag, color_text);
@@ -155,7 +155,11 @@ void CustomPresentEx(LPDIRECT3DDEVICE9EX p)
 
 void CustomReset(LPDIRECT3DDEVICE9 p, D3DPRESENT_PARAMETERS* m)
 {
-	//TODO
+	if (cp.find(p) != cp.end())
+	{
+		cp[p].Uninit();
+		cp.erase(p);
+	}
 }
 
 void CustomResetEx(LPDIRECT3DDEVICE9EX p, D3DPRESENT_PARAMETERS* m, D3DDISPLAYMODEEX* e)

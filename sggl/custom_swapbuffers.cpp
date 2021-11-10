@@ -107,7 +107,7 @@ public:
 			localtime_s(&tm1, &t1);
 			SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
 			SpeedGear_FormatText(display_text, ARRAYSIZE(display_text), pMem->statusFormat, pMem->hookSpeed, current_fps,
-				windowrect.right - windowrect.left, windowrect.bottom - windowrect.top, tm1.tm_hour, tm1.tm_min, tm1.tm_sec);
+				windowrect.right - windowrect.left, windowrect.bottom - windowrect.top, tm1.tm_hour, tm1.tm_min, tm1.tm_sec,"GL");
 		}
 		//https://github.com/ocornut/imgui/blob/master/examples/imgui_impl_opengl3.cpp#L142
 #pragma region Backup GL state

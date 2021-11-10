@@ -164,7 +164,11 @@
   <ItemGroup>
     <ClInclude Include="custom_swapbuffers.h" />
     <ClInclude Include="ftdraw.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="Shader.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="sggl.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

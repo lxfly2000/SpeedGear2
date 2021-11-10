@@ -156,6 +156,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="custom_present.h" />
+    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\minhook\build\VC16\libMinHook.vcxproj">
@@ -164,6 +165,9 @@
     <ProjectReference Include="..\sgshared\sgshared.vcxproj">
       <Project>{050ea4cd-0996-4fda-93bb-5c9faf20d893}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="sgd9.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

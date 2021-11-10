@@ -243,7 +243,7 @@ void RefreshPreviewText(HWND hwnd)
 	}
 	char text[256], fmttext[256];
 	GetEditComboBoxText(GetDlgItem(hwnd, IDC_COMBO_STATUS_FORMAT), text, ARRAYSIZE(text));
-	SpeedGear_FormatText(fmttext, ARRAYSIZE(fmttext), text, 1.0f, 60, 800, 600, 9, 0, 0);
+	SpeedGear_FormatText(fmttext, ARRAYSIZE(fmttext), text, 1.0f, 60, 800, 600, 9, 0, 0,"API");
 	SetDlgItemTextA(hwnd, IDC_STATIC_STATUS_PREVIEW, fmttext);
 }
 
@@ -495,9 +495,7 @@ BOOL ReleaseKbHook()
 
 BOOL StartSpeedGear()
 {
-	int hookType = INI_READ_INT("hookType");
-	if (hookType == 0)
-		hookType = WH_CBT;
+	int hookType = INI_READ_INT2("hookType",WH_CBT);
 	char* dllName[] = {
 #ifdef _M_IX86
 		"sgd8.dll",
@@ -625,7 +623,7 @@ BOOL OnButtonModeHelp(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 BOOL OnButtonStatusHelp(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-	MessageBoxA(hWnd, "你可以在文本中引用下列变量：\n{fps},{speed},{width},{height},{hour},{minute},{second}\n其中你可以在变量中指定格式，例如{fps:%3d}.", "帮助", MB_OK);
+	MessageBoxA(hWnd, "你可以在文本中引用下列变量：\n{fps},{speed},{width},{height},{hour},{minute},{second},{api}\n其中你可以在变量中指定格式，例如{fps:%3d}.", "帮助", MB_OK);
 	return TRUE;
 }
 
