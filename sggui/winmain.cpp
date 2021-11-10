@@ -498,9 +498,10 @@ BOOL StartSpeedGear()
 	int hookType = INI_READ_INT2("hookType",WH_CBT);
 	char* dllName[] = {
 #ifdef _M_IX86
-		"sgd8.dll",
+		"sgd8.dll","sgd9.dll","sgd11.dll","sggl.dll"
+#else
+		"sg64d9.dll","sg64d11.dll","sg64gl.dll"
 #endif
-		"sgd9.dll","sgd11.dll","sggl.dll"
 	};
 	for (int i = 0; i < ARRAYSIZE(dllName); i++)
 	{
