@@ -59,7 +59,14 @@ BOOL WINAPI HookedwglSwapBuffers(HDC p)
 {
 	CustomSwapBuffers(p);
 	BOOL r = FALSE;
-	float capturedHookSpeed = SpeedGear_GetSharedMemory()->hookSpeed;//线程不安全变量
+	SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
+	if (pMem == NULL)
+	{
+		if (!SpeedGear_InitializeSharedMemory(FALSE))
+			return pfOriginalSwapBuffers(p);
+		pMem = SpeedGear_GetSharedMemory();
+	}
+	float capturedHookSpeed = pMem->hookSpeed;//线程不安全变量
 	if (capturedHookSpeed >= 1.0f)
 	{
 		if (SpeedGear_frameCounter == 0)

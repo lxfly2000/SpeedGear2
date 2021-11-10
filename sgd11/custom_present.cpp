@@ -61,9 +61,13 @@ public:
 		m_pDevice = pDevice;
 		pDevice->GetImmediateContext(&pContext);
 		spriteBatch = std::make_unique<DirectX::SpriteBatch>(pContext);
-		if (!SpeedGear_InitializeSharedMemory(FALSE))
-			return FALSE;
 		SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
+		if (pMem == NULL)
+		{
+			if (!SpeedGear_InitializeSharedMemory(FALSE))
+				return FALSE;
+			pMem = SpeedGear_GetSharedMemory();
+		}
 
 		USES_CONVERSION;
 		C(pSC->GetDesc(&sc_desc));
@@ -84,7 +88,14 @@ public:
 		else
 			textanchorpos_y = 0.0f;
 		shad = pMem->useSystemDPI ? DPI_SCALED_VALUE(sc_desc.OutputWindow, 2) : 2;
-		period_frames = sc_desc.BufferDesc.RefreshRate.Denominator / sc_desc.BufferDesc.RefreshRate.Numerator;
+		//注意此处根据微软官方文档的说明，此处的分母是可以指定为0的！！
+		period_frames = sc_desc.BufferDesc.RefreshRate.Numerator / max(1, sc_desc.BufferDesc.RefreshRate.Denominator);
+		if (period_frames <= 1)
+		{
+			DEVMODE dm;
+			EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm);
+			period_frames = dm.dmDisplayFrequency;
+		}
 		calcShadowPos = DirectX::SimpleMath::Vector2(textpos.x + shad, textpos.y + shad);
 		DirectX::XMFLOAT4 xm = DirectX::XMFLOAT4((pMem->fontColor & 0xFF) / 255.0f, ((pMem->fontColor >> 8) & 0xFF) / 255.0f,
 			((pMem->fontColor >> 16) & 0xFF) / 255.0f, 1.0f);

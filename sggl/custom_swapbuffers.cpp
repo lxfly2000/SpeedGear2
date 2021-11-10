@@ -49,9 +49,13 @@ public:
 	}
 	void Init(HDC dc)
 	{
-		if (!SpeedGear_InitializeSharedMemory(FALSE))
-			return;
 		SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
+		if (pMem == NULL)
+		{
+			if (!SpeedGear_InitializeSharedMemory(FALSE))
+				return;
+			pMem = SpeedGear_GetSharedMemory();
+		}
 		text_color = glm::vec4((pMem->fontColor & 0xFF) / 255.0f, ((pMem->fontColor >> 8) & 0xFF) / 255.0f, ((pMem->fontColor >> 16) & 0xFF) / 255.0f, 1.0f);
 		text_shadow_color = text_color;
 		text_shadow_color /= 2.0f;

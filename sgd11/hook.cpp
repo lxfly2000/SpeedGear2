@@ -63,7 +63,14 @@ HRESULT hrLastPresent = S_OK;
 HRESULT __stdcall HookedIDXGISwapChain_Present(IDXGISwapChain* p, UINT SyncInterval, UINT Flags)
 {
 	CustomPresent(p);
-	float capturedHookSpeed = SpeedGear_GetSharedMemory()->hookSpeed;//线程不安全变量
+	SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
+	if (pMem == NULL)
+	{
+		if (!SpeedGear_InitializeSharedMemory(FALSE))
+			return pfOriginalPresent(p, SyncInterval, Flags);
+		pMem = SpeedGear_GetSharedMemory();
+	}
+	float capturedHookSpeed = pMem->hookSpeed;//线程不安全变量
 	//此时函数被拦截，只能通过指针调用，否则要先把HOOK关闭，调用p->Present，再开启HOOK
 	if (capturedHookSpeed >= 1.0f)
 	{

@@ -50,9 +50,13 @@ public:
 	{
 		Uninit();
 
-		if (!SpeedGear_InitializeSharedMemory(FALSE))
-			return FALSE;
 		SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
+		if (pMem == NULL)
+		{
+			if (!SpeedGear_InitializeSharedMemory(FALSE))
+				return FALSE;
+			pMem = SpeedGear_GetSharedMemory();
+		}
 		D3DDEVICE_CREATION_PARAMETERS dcp;
 		C(pDev->GetCreationParameters(&dcp));
 		LOGFONT df;
