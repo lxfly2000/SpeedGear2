@@ -145,6 +145,12 @@ public:
 			SpeedGear_FormatText(display_text, ARRAYSIZE(display_text), pMem->statusFormat, pMem->hookSpeed, current_fps,
 				sc_desc.BufferDesc.Width, sc_desc.BufferDesc.Height, tm1.tm_hour, tm1.tm_min, tm1.tm_sec,"D3D11");
 		}
+		//当Viewport大小为0时SpriteBatch会引发异常
+		UINT nvp = 1;
+		D3D11_VIEWPORT vp;
+		pContext->RSGetViewports(&nvp, &vp);
+		if (nvp < 1 || vp.Width == 0 || vp.Height == 0)
+			return;
 		//使用SpriteBatch会破坏之前的渲染器状态并且不会自动保存和恢复原状态，画图前应先保存原来的状态，完成后恢复
 		//参考：https://github.com/Microsoft/DirectXTK/wiki/SpriteBatch#state-management
 		//https://github.com/ocornut/imgui/blob/master/examples/imgui_impl_dx11.cpp#L130
