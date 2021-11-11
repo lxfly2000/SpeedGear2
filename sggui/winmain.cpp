@@ -8,6 +8,9 @@
 #include "../sgshared/sgshared.h"
 
 #include <thread>
+#include <regex>
+
+#pragma comment(lib,"ComCtl32.lib")
 
 //MFC资源初始化补充代码
 
@@ -45,6 +48,50 @@ BOOL OnMFCInitDialog(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 //MFC资源初始化补充代码结束
 
 
+//补充控件功能
+
+HWND CreateToolTipForRectA(HWND hwndParent,LPSTR msg)
+{
+	// Create a tooltip.
+	HWND hwndTT = CreateWindowEx(WS_EX_TOPMOST, TOOLTIPS_CLASS, NULL, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
+		CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hwndParent, NULL, GetModuleHandle(NULL), NULL);
+
+	SetWindowPos(hwndTT, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+
+	// Set up "tool" information. In this case, the "tool" is the entire parent window.
+
+	TOOLINFOA ti = { 0 };
+	ti.cbSize = sizeof(TOOLINFO);
+	ti.uFlags = TTF_SUBCLASS;
+	ti.hwnd = hwndParent;
+	ti.hinst = GetModuleHandle(NULL);
+	ti.lpszText = msg;
+
+	GetClientRect(hwndParent, &ti.rect);
+
+	// Associate the tooltip with the "tool" window.
+	SendMessage(hwndTT, TTM_ADDTOOLA, 0, (LPARAM)(LPTOOLINFO)&ti);
+	SendMessage(hwndTT, TTM_SETMAXTIPWIDTH, 0, 0);
+	return hwndTT;
+}
+
+void SetToolTipA(HWND hwndParent,HWND hwndTool, LPSTR msg,LPSTR title)
+{
+	TOOLINFOA ti = { 0 };
+	ti.cbSize = sizeof(TOOLINFO);
+	ti.uFlags = TTF_SUBCLASS;
+	ti.hwnd = hwndParent;
+	ti.hinst = GetModuleHandle(NULL);
+	ti.lpszText = msg;
+
+	SendMessage(hwndTool, TTM_UPDATETIPTEXTA, 0, (LPARAM)&ti);
+	SendMessage(hwndTool, TTM_SETTITLEA, 0, (LPARAM)title);
+}
+
+
+
+#define ID_MENU_LAUNCH_ANOTHER_ARCH 1
+#define ID_MENU_ABOUT 2
 
 //对话框回调主函数
 
@@ -73,6 +120,8 @@ DECLCBK(OnHotkeySpeedUp);
 DECLCBK(OnHotkeySlowDown);
 DECLCBK(OnHotkeySlightFaster);
 DECLCBK(OnHotkeySlightSlower);
+DECLCBK(OnAbout);
+DECLCBK(OnLaunchAnotherArch);
 INT_PTR OnCtlColorStaticStatusPreview(HWND, UINT, WPARAM, LPARAM);
 
 INT_PTR CALLBACK DlgCallback(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -111,6 +160,8 @@ INT_PTR CALLBACK DlgCallback(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		{
 		case SC_MINIMIZE:ONCBK(OnMinimize);break;
 		case SC_RESTORE:ONCBK(OnRestore);break;
+		case ID_MENU_ABOUT:ONCBK(OnAbout);break;
+		case ID_MENU_LAUNCH_ANOTHER_ARCH:ONCBK(OnLaunchAnotherArch);break;
 		}
 		break;
 	case WM_NOTIFY:
@@ -134,12 +185,21 @@ INT_PTR CALLBACK DlgCallback(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 int WINAPI _tWinMain(_In_ HINSTANCE hInst, _In_opt_ HINSTANCE hPrevInst, _In_ LPTSTR param, _In_ int iShow)
 {
+	INITCOMMONCONTROLSEX iex = { sizeof(INITCOMMONCONTROLSEX),ICC_BAR_CLASSES };
+	InitCommonControlsEx(&iex);
 	return DialogBox(hInst, MAKEINTRESOURCE(IDD_DIALOG_MAIN), NULL, DlgCallback);
 }
 
 
 
 //程序主要功能实现
+
+#define APPNAME "SpeedGear"
+#ifdef _M_IX86
+#define DLGTITLE APPNAME " x86"
+#else
+#define DLGTITLE APPNAME " x64"
+#endif
 
 BOOL IsMyAppFocused()
 {
@@ -247,6 +307,8 @@ void RefreshPreviewText(HWND hwnd)
 	SetDlgItemTextA(hwnd, IDC_STATIC_STATUS_PREVIEW, fmttext);
 }
 
+HWND hFontTip;
+
 void SetButtonFontText(HWND hwnd)
 {
 	char buf[256];
@@ -254,6 +316,8 @@ void SetButtonFontText(HWND hwnd)
 	if (lstrlenA(g_logFont.lfFaceName) == 0)
 		*strchr(buf, ' ') = 0;
 	SetDlgItemTextA(hwnd, IDC_BUTTON_STATUS_FONT, buf);
+	wsprintfA(buf, "%s,%d%s,%d,#%06X", g_logFont.lfFaceName, g_logFont.lfWeight, g_logFont.lfItalic ? ",倾斜" : "", FONTHEIGHT_TO_POUND(hwnd, g_logFont.lfHeight), g_cf.rgbColors);
+	SetToolTipA(GetDlgItem(hwnd, IDC_BUTTON_STATUS_FONT), hFontTip, buf, "字体设置");
 	HFONT hFont = CreateFontA(g_logFont.lfHeight, 0, 0, 0, g_logFont.lfWeight, g_logFont.lfItalic, 0, 0, DEFAULT_CHARSET, 0, 0, 0, 0, g_logFont.lfFaceName);
 	HWND hStatic = GetDlgItem(hwnd, IDC_STATIC_STATUS_PREVIEW);
 	SendMessage(hStatic, WM_SETFONT, (WPARAM)hFont, TRUE);
@@ -525,6 +589,7 @@ BOOL StartSpeedGear()
 			return FALSE;
 		}
 	}
+	SetWindowTextA(hMain, DLGTITLE " - 已启动");
 	return TRUE;
 }
 
@@ -538,6 +603,7 @@ BOOL StopSpeedGear()
 			hHookSGList[i] = NULL;
 		}
 	}
+	SetWindowTextA(hMain, DLGTITLE);
 	return TRUE;
 }
 
@@ -549,6 +615,18 @@ BOOL OnInitDialog(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	//调用MFC资源的初始化
 	OnMFCInitDialog(hWnd, msg, wParam, lParam);
 	hMain = hWnd;
+	hFontTip = CreateToolTipForRectA(GetDlgItem(hWnd, IDC_BUTTON_STATUS_FONT), NULL);
+	CreateToolTipForRectA(GetDlgItem(hWnd, IDC_CHECK_USE_SYSTEM_DPI), "勾选以使用当前系统的DPI数值确定字体大小，\n否则按96DPI处理。");
+	CreateToolTipForRectA(GetDlgItem(hWnd, IDC_BUTTON_SPEED_TEXT), "点击恢复原速");
+	SetWindowTextA(hWnd, DLGTITLE);
+	HMENU hMenu = GetSystemMenu(hWnd, FALSE);
+	AppendMenuA(hMenu, MF_SEPARATOR, 0, 0);
+#ifdef _M_IX86
+	AppendMenuA(hMenu, MF_STRING, ID_MENU_LAUNCH_ANOTHER_ARCH, "切换至 x64 程序(&L)…");
+#else
+	AppendMenuA(hMenu, MF_STRING, ID_MENU_LAUNCH_ANOTHER_ARCH, "切换至 x86 程序(&L)…");
+#endif
+	AppendMenuA(hMenu, MF_STRING, ID_MENU_ABOUT, "程序信息(&A)…");
 
 	InitSpeedSlider(hWnd);
 	ComboBox_SetCurSel(GetDlgItem(hWnd, IDC_COMBO_STATUS_BACKGROUND), 0);
@@ -789,5 +867,48 @@ BOOL OnHotkeySlightSlower(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		GuiSaveMem(hWnd);
 		MemSaveIni();
 	}
+	return TRUE;
+}
+
+BOOL OnAbout(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	TASKDIALOGCONFIG tdc{};
+	tdc.cbSize = sizeof(tdc);
+	tdc.hwndParent = hWnd;
+	tdc.hInstance = GetModuleHandle(NULL);
+	tdc.dwFlags = TDF_ENABLE_HYPERLINKS;
+	tdc.dwCommonButtons = TDCBF_OK_BUTTON;
+	tdc.pszWindowTitle = TEXT(APPNAME);
+	tdc.pszMainIcon = TD_INFORMATION_ICON;
+	std::wstring msgWithURL = TEXT("制作：lxfly2000\n\n程序发布地址：\nhttps://github.com/lxfly2000/SpeedGear2");
+	msgWithURL = std::regex_replace(msgWithURL, std::basic_regex<TCHAR>(TEXT("(https?://[A-Za-z0-9_\\-\\./]+)")), TEXT("<a href=\"$1\">$1</a>"));
+	tdc.pszContent = msgWithURL.c_str();
+	tdc.pfCallback = [](HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, LONG_PTR lpRefData)
+	{
+		switch (msg)
+		{
+		case TDN_HYPERLINK_CLICKED:
+			ShellExecute(hwnd, TEXT("open"), (LPCWSTR)lParam, NULL, NULL, SW_SHOWNORMAL);
+			break;
+		}
+		return S_OK;
+	};
+	TaskDialogIndirect(&tdc, NULL, NULL, NULL);
+	return TRUE;
+}
+
+BOOL OnLaunchAnotherArch(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+#ifdef _M_IX86
+#define LAUNCH_FILE "sg64gui.exe"
+#else
+#define LAUNCH_FILE "sggui.exe"
+#endif
+	if ((INT_PTR)ShellExecute(hWnd, TEXT("open"), TEXT(LAUNCH_FILE), NULL, NULL, SW_SHOWNORMAL) <= 32)
+	{
+		MessageBoxA(hWnd, LAUNCH_FILE "\n启动失败，请检查文件是否存在。", NULL, MB_ICONERROR);
+		return FALSE;
+	}
+	SendMessage(hWnd, WM_COMMAND, IDCANCEL, 0);
 	return TRUE;
 }
