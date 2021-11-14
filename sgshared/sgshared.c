@@ -74,6 +74,7 @@ char* SpeedGear_FormatText(char* buf, int len, const char* fmt, float speed, int
     char kwbuf[8] = "";//变量名
     char kwfmt[8] = "";//格式串
     char kwstr[16] = "";//数值串
+    ZeroMemory(kwstr, sizeof(kwstr));
     int posKwBuf = 0, posKwFmt = 0;
     while (fmt[posFmt] != 0)
     {

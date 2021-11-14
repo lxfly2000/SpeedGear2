@@ -87,7 +87,7 @@ HRESULT __stdcall HookedIDXGISwapChain_Present(IDXGISwapChain* p, UINT SyncInter
 			wvget = false;
 		}
 		for (int i = 0; i < (int)(1.0f / capturedHookSpeed); i++)
-			D3DKMTWaitForVerticalBlankEvent(&wv);
+			(void)D3DKMTWaitForVerticalBlankEvent(&wv);
 	}
 	return hrLastPresent;
 }
@@ -98,7 +98,7 @@ HRESULT __stdcall HookedIDXGISwapChain_ResizeBuffers(IDXGISwapChain* p, UINT Buf
 	return pfOriginalResizeBuffers(p, BufferCount, Width, Height, NewFormat, SwapChainFlags);
 }
 
-void GetPresentVAddr(PFIDXGISwapChain_Present* pPresent, PFIDXGISwapChain_ResizeBuffers* pResizeBuffers)
+BOOL GetPresentVAddr(PFIDXGISwapChain_Present* pPresent, PFIDXGISwapChain_ResizeBuffers* pResizeBuffers)
 {
 	ID3D11Device* pDevice;
 	D3D_FEATURE_LEVEL useLevel;
@@ -125,8 +125,18 @@ void GetPresentVAddr(PFIDXGISwapChain_Present* pPresent, PFIDXGISwapChain_Resize
 #endif
 	D3D_FEATURE_LEVEL featureLevels[] = { D3D_FEATURE_LEVEL_11_0,D3D_FEATURE_LEVEL_10_1,D3D_FEATURE_LEVEL_10_0 };
 	//这个函数不能在DllMain中调用，必须新开一个线程
-	D3D11CreateDeviceAndSwapChain(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, device_flag, featureLevels, ARRAYSIZE(featureLevels), D3D11_SDK_VERSION,
+	HRESULT hr = D3D11CreateDeviceAndSwapChain(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, device_flag, featureLevels, ARRAYSIZE(featureLevels), D3D11_SDK_VERSION,
 		&sc_desc, &pSC, &pDevice, &useLevel, &pContext);
+	if (FAILED(hr))
+	{
+		hr = D3D11CreateDeviceAndSwapChain(NULL, D3D_DRIVER_TYPE_NULL, NULL, device_flag, featureLevels, ARRAYSIZE(featureLevels), D3D11_SDK_VERSION,
+			&sc_desc, &pSC, &pDevice, &useLevel, &pContext);
+		if (FAILED(hr))
+		{
+			DebugBreak();
+			return FALSE;
+		}
+	}
 	//因为相同类的虚函数是共用的，所以只需创建一个该类的对象，通过指针就能获取到函数地址
 	//Present在VTable[8]的位置
 	INT_PTR pP = reinterpret_cast<INT_PTR*>(reinterpret_cast<INT_PTR*>(pSC)[0])[8];
@@ -136,12 +146,14 @@ void GetPresentVAddr(PFIDXGISwapChain_Present* pPresent, PFIDXGISwapChain_Resize
 	pSC->Release();
 	pContext->Release();
 	pDevice->Release();
+	return TRUE;
 }
 
 //导出以方便在没有DllMain时调用
 extern "C" __declspec(dllexport) BOOL StartHook()
 {
-	GetPresentVAddr(&pfPresent, &pfResizeBuffers);
+	if (!GetPresentVAddr(&pfPresent, &pfResizeBuffers))
+		return FALSE;
 	if (MH_Initialize() != MH_OK)
 		return FALSE;
 	if (MH_CreateHook(pfPresent, HookedIDXGISwapChain_Present, reinterpret_cast<void**>(&pfOriginalPresent)) != MH_OK)

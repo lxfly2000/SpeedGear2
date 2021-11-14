@@ -24,12 +24,12 @@ using namespace DirectX;
 
 #include "..\sgshared\sgshared.h"
 
-int PointToDip(int pointsize)
+template<typename T>T PointToDip(T pointsize)
 {
 	//https://www.codeproject.com/articles/376597/outline-text-with-directwrite#source
 	//原则上第二个参数应为GetDeviceCaps(GetDC(NULL), LOGPIXELSX或LOGPIXELSY),但此处是用于游戏，且游戏通常不考虑DPI，因此直接指定96
 	BOOL b = SpeedGear_GetSharedMemory()->useSystemDPI;
-	return -(b ? POUND_TO_FONTHEIGHT(NULL, pointsize) : POUND_TO_FONTHEIGHT_96DPI(pointsize));
+	return (T)(-(b ? POUND_TO_FONTHEIGHT(NULL, (int)pointsize) : POUND_TO_FONTHEIGHT_96DPI((int)pointsize)));
 }
 
 HRESULT LoadTextureFromFile(ID3D11Device* device, LPWSTR fpath, ID3D11ShaderResourceView** pTex, int* pw, int* ph, bool convertpmalpha)
@@ -171,7 +171,7 @@ int ReadFileToMemory(const char* pfilename, std::unique_ptr<char>& memout, size_
 		if (strncmp(bom, "\xef\xbb\xbf", 3) == 0)startpos = 3;
 	}
 	fin.seekg(0, std::ios::end);
-	*memsize = (int)fin.tellg() - startpos;
+	*memsize = (size_t)fin.tellg() - (size_t)startpos;
 	memout.reset(new char[*memsize]);
 	fin.seekg(startpos, std::ios::beg);
 	fin.read(memout.get(), *memsize);

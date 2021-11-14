@@ -82,7 +82,7 @@ BOOL WINAPI HookedwglSwapBuffers(HDC p)
 			wvget = false;
 		}
 		for (int i = 0; i < (int)(1.0f / capturedHookSpeed); i++)
-			D3DKMTWaitForVerticalBlankEvent(&wv);
+			(void)D3DKMTWaitForVerticalBlankEvent(&wv);
 	}
 	return r;
 }
@@ -100,19 +100,27 @@ void WINAPI OriginalViewport(int x, int y, int width, int height)
 
 PFwglSwapBuffers GetSwapBuffersAddr()
 {
-	return reinterpret_cast<PFwglSwapBuffers>(GetProcAddress(LoadLibrary(TEXT("OpenGL32.dll")), "wglSwapBuffers"));
+	HMODULE base = LoadLibrary(TEXT("OpenGL32.dll"));
+	if (base == NULL)
+		return NULL;
+	return reinterpret_cast<PFwglSwapBuffers>(GetProcAddress(base, "wglSwapBuffers"));
 }
 
 PFglViewport GetViewportAddr()
 {
-	return reinterpret_cast<PFglViewport>(GetProcAddress(LoadLibrary(TEXT("OpenGL32.dll")), "glViewport"));
+	HMODULE base = LoadLibrary(TEXT("OpenGL32.dll"));
+	if (base == NULL)
+		return NULL;
+	return reinterpret_cast<PFglViewport>(GetProcAddress(base, "glViewport"));
 }
 
 //导出以方便在没有DllMain时调用
 extern "C" __declspec(dllexport) BOOL StartHook()
 {
-	pfSwapBuffers = GetSwapBuffersAddr();
-	pfViewport = GetViewportAddr();
+	if ((pfSwapBuffers = GetSwapBuffersAddr()) == NULL)
+		return FALSE;
+	if ((pfViewport = GetViewportAddr()) == NULL)
+		return FALSE;
 	if (MH_Initialize() != MH_OK)
 		return FALSE;
 	if (MH_CreateHook(pfSwapBuffers, HookedwglSwapBuffers, reinterpret_cast<void**>(&pfOriginalSwapBuffers)) != MH_OK)

@@ -27,7 +27,12 @@ typedef struct
 BOOL CALLBACK MFCInitDlgCallback(HMODULE hModule, LPCWSTR lpType, LPWSTR lpName, LONG_PTR lParam)
 {
 	HRSRC hRsrc = FindResource(hModule, lpName, lpType);
-	LPVOID ptr = LockResource(LoadResource(hModule, hRsrc));
+	if (hRsrc == NULL)
+		return FALSE;
+	HGLOBAL hRes = LoadResource(hModule, hRsrc);
+	if (hRes == NULL)
+		return FALSE;
+	LPVOID ptr = LockResource(hRes);
 	size_t sz = SizeofResource(hModule, hRsrc);
 	size_t pos = 0;
 	while (sz - pos >= sizeof(DLGINITHEADER))
@@ -187,7 +192,7 @@ int WINAPI _tWinMain(_In_ HINSTANCE hInst, _In_opt_ HINSTANCE hPrevInst, _In_ LP
 {
 	INITCOMMONCONTROLSEX iex = { sizeof(INITCOMMONCONTROLSEX),ICC_BAR_CLASSES };
 	InitCommonControlsEx(&iex);
-	return DialogBox(hInst, MAKEINTRESOURCE(IDD_DIALOG_MAIN), NULL, DlgCallback);
+	return (int)DialogBox(hInst, MAKEINTRESOURCE(IDD_DIALOG_MAIN), NULL, DlgCallback);
 }
 
 
@@ -252,7 +257,8 @@ void SetSpeedSlider(HWND hwnd, float speed)
 	char buf[16];
 	sprintf_s(buf, ARRAYSIZE(buf), "%.3f&x", speed);
 	SetDlgItemTextA(hwnd, IDC_BUTTON_SPEED_TEXT, buf);
-	SendMessage(GetDlgItem(hwnd, IDC_SLIDER_SPEED), TBM_SETPOS, TRUE, (LPARAM)(24.0f + log2f(speed) * 24.0f / 3.0f));
+	float v = 24.0f + log2f(speed) * 24.0f / 3.0f;
+	SendMessage(GetDlgItem(hwnd, IDC_SLIDER_SPEED), TBM_SETPOS, TRUE, (LPARAM)v);
 }
 
 float GetSpeedSlider(HWND hwnd)

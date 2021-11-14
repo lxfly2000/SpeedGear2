@@ -17,21 +17,22 @@ ID3DXFont* pFont = nullptr;//经测试D3DXFont在此处不能创建多次
 class D3DXCustomPresent
 {
 private:
-	unsigned t1, t2, fcount;
+	ULONGLONG t1, t2;
 	char display_text[256];
 	int current_fps;
 	int shad;
 
-	UINT period_frames;
+	UINT period_frames, fcount;
 	RECT rText, rTextShadow;
 	int formatFlag;
 	D3DCOLOR color_text, color_shadow;
 	D3DVIEWPORT9 viewport;
 public:
-	D3DXCustomPresent() :t1(0), t2(0), fcount(0), formatFlag(0)
+	D3DXCustomPresent() :t1(0), t2(0), fcount(0), formatFlag(0),color_shadow(0),color_text(0),current_fps(0),display_text(),period_frames(0),
+		rTextShadow(),rText(),shad(0),viewport()
 	{
 	}
-	D3DXCustomPresent(D3DXCustomPresent&& other)
+	D3DXCustomPresent(D3DXCustomPresent&& other)noexcept:D3DXCustomPresent()
 	{
 		t1 = std::move(other.t1);
 		t2 = std::move(other.t2);
@@ -120,10 +121,10 @@ public:
 		{
 			fcount = period_frames;
 			t1 = t2;
-			t2 = GetTickCount();
+			t2 = GetTickCount64();
 			if (t1 == t2)
 				t1--;
-			current_fps = period_frames * 1000 / (t2 - t1);
+			current_fps = period_frames * 1000 / (UINT)(t2 - t1);
 			time_t t1 = time(NULL);
 			tm tm1;
 			localtime_s(&tm1, &t1);

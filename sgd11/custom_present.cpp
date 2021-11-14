@@ -5,7 +5,6 @@
 #include<map>
 #include<string>
 #include<ctime>
-#include<atlconv.h>
 
 #ifdef _DEBUG
 #define C(x) if(FAILED(x)){MessageBox(NULL,TEXT(_CRT_STRINGIZE(x)),NULL,MB_ICONERROR);throw E_FAIL;}
@@ -22,11 +21,11 @@ private:
 	DirectX::SimpleMath::Vector2 textpos;
 	float textanchorpos_x, textanchorpos_y;
 	ID3D11DeviceContext* pContext;
-	unsigned t1, t2, fcount;
+	ULONGLONG t1, t2;
 	char display_text[256];
 	int current_fps;
 	int shad;
-	UINT period_frames;
+	UINT period_frames, fcount;
 
 	DirectX::XMVECTOR calcColor, calcShadowColor;
 	DirectX::XMFLOAT2 calcShadowPos;
@@ -34,10 +33,11 @@ private:
 	ID3D11Device* m_pDevice;
 	IDXGISwapChain* m_pSC;
 public:
-	D2DCustomPresent() :pContext(nullptr), t1(0), t2(0), fcount(0)
+	D2DCustomPresent() :pContext(nullptr), t1(0), t2(0), fcount(0), textanchorpos_x(0), textanchorpos_y(0), calcColor(), calcShadowColor(),
+		calcShadowPos(), current_fps(0), display_text(), m_pDevice(NULL), m_pSC(NULL), period_frames(0), sc_desc(), shad(0)
 	{
 	}
-	D2DCustomPresent(D2DCustomPresent&& other)
+	D2DCustomPresent(D2DCustomPresent&& other)noexcept
 	{
 		spriteBatch = std::move(other.spriteBatch);
 		spriteFont = std::move(other.spriteFont);
@@ -69,9 +69,11 @@ public:
 			pMem = SpeedGear_GetSharedMemory();
 		}
 
-		USES_CONVERSION;
+		wchar_t wbuf[32];
+		size_t wbc = 0;
 		C(pSC->GetDesc(&sc_desc));
-		C(LoadFontFromSystem(m_pDevice, spriteFont, 1024, 1024, A2W(pMem->fontName), pMem->fontSize, D2D1::ColorF(D2D1::ColorF::White), (DWRITE_FONT_WEIGHT)pMem->fontWeight));
+		mbstowcs_s(&wbc,wbuf, pMem->fontName, ARRAYSIZE(pMem->fontName));
+		C(LoadFontFromSystem(m_pDevice, spriteFont, 1024, 1024, wbuf, (float)pMem->fontSize, D2D1::ColorF(D2D1::ColorF::White), (DWRITE_FONT_WEIGHT)pMem->fontWeight));
 		float fWidth = (float)sc_desc.BufferDesc.Width, fHeight = (float)sc_desc.BufferDesc.Height;
 		textpos.x = (pMem->statusPosition % 3) / 2.0f * fWidth;
 		textpos.y = (pMem->statusPosition / 3) / 2.0f * fHeight;
@@ -92,7 +94,7 @@ public:
 		period_frames = sc_desc.BufferDesc.RefreshRate.Numerator / max(1, sc_desc.BufferDesc.RefreshRate.Denominator);
 		if (period_frames <= 1)
 		{
-			DEVMODE dm;
+			DEVMODE dm{};
 			EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm);
 			period_frames = dm.dmDisplayFrequency;
 		}
@@ -134,10 +136,10 @@ public:
 		{
 			fcount = period_frames;
 			t1 = t2;
-			t2 = GetTickCount();
+			t2 = GetTickCount64();
 			if (t1 == t2)
 				t1--;
-			current_fps = period_frames * 1000 / (t2 - t1);
+			current_fps = period_frames * 1000 / (int)(t2 - t1);
 			time_t t1 = time(NULL);
 			tm tm1;
 			localtime_s(&tm1, &t1);

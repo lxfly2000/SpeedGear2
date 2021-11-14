@@ -92,7 +92,7 @@ HRESULT __stdcall HookedIDirect3DDevice9_Present(LPDIRECT3DDEVICE9 pDevice, LPCR
 			wvget = false;
 		}
 		for (int i = 0; i < (int)(1.0f / capturedHookSpeed); i++)
-			D3DKMTWaitForVerticalBlankEvent(&wv);
+			(void)D3DKMTWaitForVerticalBlankEvent(&wv);
 	}
 	return hrLastPresent;
 }
@@ -121,13 +121,14 @@ HRESULT WINAPI HookedIDirect3DSwapChain9_Present(LPDIRECT3DSWAPCHAIN9 pSC, LPCRE
 	return pfOriginalSCPresent(pSC, pSrc, pDest, hwnd, pRgn, f);
 }
 
-void GetPresentVAddr(PFIDirect3DDevice9_Present*pPresent,PFIDirect3DDevice9_Reset*pReset,
+BOOL GetPresentVAddr(PFIDirect3DDevice9_Present*pPresent,PFIDirect3DDevice9_Reset*pReset,
 	PFIDirect3DDevice9Ex_PresentEx*pPresentEx,PFIDirect3DDevice9Ex_ResetEx*pResetEx,PFIDirect3DSwapChain9_Present*pSCPresent)
 {
 	IDirect3D9Ex* pD3D9 = nullptr;
-	Direct3DCreate9Ex(D3D_SDK_VERSION, &pD3D9);
+	if (FAILED(Direct3DCreate9Ex(D3D_SDK_VERSION, &pD3D9)))
+		return FALSE;
 	if (!pD3D9)
-		return;
+		return FALSE;
 	D3DPRESENT_PARAMETERS d3dpp;
 	ZeroMemory(&d3dpp, sizeof d3dpp);
 	d3dpp.BackBufferWidth = 800;
@@ -147,18 +148,19 @@ void GetPresentVAddr(PFIDirect3DDevice9_Present*pPresent,PFIDirect3DDevice9_Rese
 	IDirect3DDevice9* pDevice = nullptr;
 	IDirect3DDevice9Ex* pDeviceEx = nullptr;
 	D3DCAPS9 caps;
-	pD3D9->GetDeviceCaps(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &caps);
+	if (FAILED(pD3D9->GetDeviceCaps(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &caps)))
+		return FALSE;
 	int vp;
 	if (caps.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT)
 		vp = D3DCREATE_HARDWARE_VERTEXPROCESSING;
 	else
 		vp = D3DCREATE_SOFTWARE_VERTEXPROCESSING;
 	if (FAILED(pD3D9->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, GetDesktopWindow(), vp, &d3dpp, &pDevice)))
-		return;
+		return FALSE;
 	IDirect3DSwapChain9* pSC = nullptr;
 	pDevice->GetSwapChain(0, &pSC);
 	if (FAILED(pD3D9->CreateDeviceEx(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, GetDesktopWindow(), vp, &d3dpp, nullptr, &pDeviceEx)))
-		return;
+		return FALSE;
 	INT_PTR pP = reinterpret_cast<INT_PTR*>(reinterpret_cast<INT_PTR*>(pDevice)[0])[17];//通过类定义查看函数所在位置
 	INT_PTR pR = reinterpret_cast<INT_PTR*>(reinterpret_cast<INT_PTR*>(pDevice)[0])[16];
 	INT_PTR pPEx = reinterpret_cast<INT_PTR*>(reinterpret_cast<INT_PTR*>(pDeviceEx)[0])[121];
@@ -172,12 +174,14 @@ void GetPresentVAddr(PFIDirect3DDevice9_Present*pPresent,PFIDirect3DDevice9_Rese
 	pDevice->Release();
 	pDeviceEx->Release();
 	pD3D9->Release();
+	return TRUE;
 }
 
 //导出以方便在没有DllMain时调用
 extern "C" __declspec(dllexport) BOOL StartHook()
 {
-	GetPresentVAddr(&pfPresent, &pfReset, &pfPresentEx, &pfResetEx, &pfSCPresent);
+	if (!GetPresentVAddr(&pfPresent, &pfReset, &pfPresentEx, &pfResetEx, &pfSCPresent))
+		return FALSE;
 	if (MH_Initialize() != MH_OK)
 		return FALSE;
 	if (MH_CreateHook(pfPresent, HookedIDirect3DDevice9_Present, reinterpret_cast<void**>(&pfOriginalPresent)) != MH_OK)

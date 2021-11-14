@@ -87,7 +87,7 @@ HRESULT __stdcall HookedIDirect3DDevice8_Present(LPDIRECT3DDEVICE8 pDevice, LPCR
 			wvget = false;
 		}
 		for (int i = 0; i < (int)(1.0f / capturedHookSpeed); i++)
-			D3DKMTWaitForVerticalBlankEvent(&wv);
+			(void)D3DKMTWaitForVerticalBlankEvent(&wv);
 	}
 	return hrLastPresent;
 }

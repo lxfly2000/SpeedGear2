@@ -30,7 +30,8 @@ private:
 	float calc_text_x, calc_text_y, calc_shadow_x, calc_shadow_y;
 	float anchor_x, anchor_y;
 public:
-	SwapBuffersDraw():t1(0),t2(0),fcounter(0),windowrect()
+	SwapBuffersDraw():t1(0),t2(0),fcounter(0),windowrect(),anchor_x(0),anchor_y(0),calc_shadow_x(0),calc_shadow_y(0),calc_text_x(0),calc_text_y(0),
+		current_fps(0),display_text(),font_face_index(0),period_frames(0),shad(0),text_color(),text_shadow_color()
 	{
 	}
 	void CalcRect(HDC hdc,int x,int y,int width,int height)
