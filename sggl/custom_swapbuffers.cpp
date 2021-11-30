@@ -87,7 +87,7 @@ public:
 			font_face_index = atoi(posc + 1);
 		}
 		ftdraw.Init(windowrect.right - windowrect.left, windowrect.bottom - windowrect.top, fn, font_face_index,
-			(UINT)-(pMem->useSystemDPI ? POUND_TO_FONTHEIGHT(WindowFromDC(dc), pMem->fontSize) : POUND_TO_FONTHEIGHT_96DPI(pMem->fontSize)), NULL);
+			(UINT)(pMem->useSystemDPI ? LOGICAL_UNIT_TO_PIXEL(WindowFromDC(dc), pMem->fontSize) : LOGICAL_UNIT_TO_PIXEL_96DPI(pMem->fontSize)), NULL);
 		DEVMODE dm;
 		EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm);
 		period_frames = dm.dmDisplayFrequency;

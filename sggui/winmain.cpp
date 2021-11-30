@@ -266,6 +266,27 @@ float GetSpeedSlider(HWND hwnd)
 	return powf(2.0f, (SendMessage(GetDlgItem(hwnd, IDC_SLIDER_SPEED), TBM_GETPOS, 0, 0) - 24.0f) * 3.0f / 24.0f);
 }
 
+BOOL InitProcessList(HWND hwnd)
+{
+	HWND hList = GetDlgItem(hwnd, IDC_LIST_PROCESS);
+	LVCOLUMN col{};
+	col.mask = LVCF_WIDTH | LVCF_IMAGE;
+	col.cx = DPI_SCALED_VALUE(hList, 24);
+	ListView_InsertColumn(hList, 0, &col);
+	col.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT;
+	col.fmt = LVCFMT_RIGHT;
+	SIZE m;
+	GetTextExtentPoint32(GetDC(hList), TEXT("65536"), 5, &m);
+	col.cx = LOGICAL_UNIT_TO_PIXEL(hList, m.cx);
+	col.pszText = TEXT("PID");
+	ListView_InsertColumn(hList, 1, &col);
+	col.fmt = LVCFMT_LEFT;
+	col.cx = col.cx * 4;
+	col.pszText = TEXT("进程名");
+	ListView_InsertColumn(hList, 2, &col);
+	return TRUE;
+}
+
 char _iniSaveIntBuf[16];
 #define INI_READ_INT(key) GetPrivateProfileIntA("SpeedGear",key,0,".\\sg.ini")
 #define INI_READ_INT2(key,def) GetPrivateProfileIntA("SpeedGear",key,def,".\\sg.ini")
@@ -318,11 +339,11 @@ HWND hFontTip;
 void SetButtonFontText(HWND hwnd)
 {
 	char buf[256];
-	wsprintfA(buf, "字体设置(&T) [%s,%d%s,%d,#%06X]", g_logFont.lfFaceName, g_logFont.lfWeight, g_logFont.lfItalic ? ",倾斜" : "", FONTHEIGHT_TO_POUND(hwnd,g_logFont.lfHeight), g_cf.rgbColors);
+	wsprintfA(buf, "字体设置(&T) [%s,%d%s,%d,#%06X]", g_logFont.lfFaceName, g_logFont.lfWeight, g_logFont.lfItalic ? ",倾斜" : "", PIXEL_TO_LOGICAL_UNIT(hwnd, abs(g_logFont.lfHeight)), g_cf.rgbColors);
 	if (lstrlenA(g_logFont.lfFaceName) == 0)
 		*strchr(buf, ' ') = 0;
 	SetDlgItemTextA(hwnd, IDC_BUTTON_STATUS_FONT, buf);
-	wsprintfA(buf, "%s,%d%s,%d,#%06X", g_logFont.lfFaceName, g_logFont.lfWeight, g_logFont.lfItalic ? ",倾斜" : "", FONTHEIGHT_TO_POUND(hwnd, g_logFont.lfHeight), g_cf.rgbColors);
+	wsprintfA(buf, "%s,%d%s,%d,#%06X", g_logFont.lfFaceName, g_logFont.lfWeight, g_logFont.lfItalic ? ",倾斜" : "", PIXEL_TO_LOGICAL_UNIT(hwnd, abs(g_logFont.lfHeight)), g_cf.rgbColors);
 	SetToolTipA(GetDlgItem(hwnd, IDC_BUTTON_STATUS_FONT), hFontTip, buf, "字体设置");
 	HFONT hFont = CreateFontA(g_logFont.lfHeight, 0, 0, 0, g_logFont.lfWeight, g_logFont.lfItalic, 0, 0, DEFAULT_CHARSET, 0, 0, 0, 0, g_logFont.lfFaceName);
 	HWND hStatic = GetDlgItem(hwnd, IDC_STATIC_STATUS_PREVIEW);
@@ -339,7 +360,7 @@ BOOL GuiReadMem(HWND hwnd)
 	lstrcpyA(g_logFont.lfFaceName, pMem->fontName);
 	g_logFont.lfWeight = pMem->fontWeight;
 	g_logFont.lfItalic = pMem->fontItalic;
-	g_logFont.lfHeight = POUND_TO_FONTHEIGHT(hwnd,pMem->fontSize);
+	g_logFont.lfHeight = -LOGICAL_UNIT_TO_PIXEL(hwnd, pMem->fontSize);
 	g_cf.rgbColors = pMem->fontColor;
 
 	SetButtonFontText(hwnd);
@@ -375,7 +396,7 @@ BOOL GuiSaveMem(HWND hwnd)
 	lstrcpyA(pMem->fontName, g_logFont.lfFaceName);
 	pMem->fontWeight = g_logFont.lfWeight;
 	pMem->fontItalic = g_logFont.lfItalic;
-	pMem->fontSize = FONTHEIGHT_TO_POUND(hwnd, g_logFont.lfHeight);
+	pMem->fontSize = PIXEL_TO_LOGICAL_UNIT(hwnd, abs(g_logFont.lfHeight));
 	pMem->fontColor = g_cf.rgbColors;
 	pMem->useSystemDPI = IsDlgButtonChecked(hwnd, IDC_CHECK_USE_SYSTEM_DPI);
 
@@ -621,6 +642,9 @@ BOOL OnInitDialog(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	//调用MFC资源的初始化
 	OnMFCInitDialog(hWnd, msg, wParam, lParam);
 	hMain = hWnd;
+	HICON hIcon = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_ICON_SG2));
+	SendMessage(hWnd, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
+	SendMessage(hWnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
 	hFontTip = CreateToolTipForRectA(GetDlgItem(hWnd, IDC_BUTTON_STATUS_FONT), NULL);
 	CreateToolTipForRectA(GetDlgItem(hWnd, IDC_CHECK_USE_SYSTEM_DPI), "勾选以使用当前系统的DPI数值确定字体大小，\n否则按96DPI处理。");
 	CreateToolTipForRectA(GetDlgItem(hWnd, IDC_BUTTON_SPEED_TEXT), "点击恢复原速");
@@ -636,6 +660,8 @@ BOOL OnInitDialog(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 	InitSpeedSlider(hWnd);
 	ComboBox_SetCurSel(GetDlgItem(hWnd, IDC_COMBO_STATUS_BACKGROUND), 0);
+
+	InitProcessList(hWnd);
 
 	if (SpeedGear_InitializeSharedMemory(TRUE) == FALSE)
 	{

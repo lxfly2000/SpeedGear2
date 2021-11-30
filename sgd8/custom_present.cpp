@@ -62,7 +62,7 @@ public:
 		C(pDev->GetCreationParameters(&dcp));
 		LOGFONT df;
 		ZeroMemory(&df, sizeof(LOGFONT));
-		df.lfHeight = pMem->useSystemDPI ? POUND_TO_FONTHEIGHT(dcp.hFocusWindow, pMem->fontSize) : POUND_TO_FONTHEIGHT_96DPI(pMem->fontSize);
+		df.lfHeight = -(pMem->useSystemDPI ? LOGICAL_UNIT_TO_PIXEL(dcp.hFocusWindow, pMem->fontSize) : LOGICAL_UNIT_TO_PIXEL_96DPI(pMem->fontSize));
 		df.lfWidth = 0;
 		df.lfWeight = pMem->fontWeight;
 		df.lfItalic = false;

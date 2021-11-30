@@ -58,7 +58,7 @@ public:
 		C(pDev->GetCreationParameters(&dcp));
 		D3DXFONT_DESC df;
 		ZeroMemory(&df, sizeof(D3DXFONT_DESC));
-		df.Height = pMem->useSystemDPI ? POUND_TO_FONTHEIGHT(dcp.hFocusWindow, pMem->fontSize) : FONTHEIGHT_TO_POUND_96DPI(pMem->fontSize);
+		df.Height = -(pMem->useSystemDPI ? LOGICAL_UNIT_TO_PIXEL(dcp.hFocusWindow, pMem->fontSize) : LOGICAL_UNIT_TO_PIXEL_96DPI(pMem->fontSize));
 		df.Width = 0;
 		df.Weight = pMem->fontWeight;
 		df.MipLevels = D3DX_DEFAULT;

@@ -29,7 +29,7 @@ template<typename T>T PointToDip(T pointsize)
 	//https://www.codeproject.com/articles/376597/outline-text-with-directwrite#source
 	//原则上第二个参数应为GetDeviceCaps(GetDC(NULL), LOGPIXELSX或LOGPIXELSY),但此处是用于游戏，且游戏通常不考虑DPI，因此直接指定96
 	BOOL b = SpeedGear_GetSharedMemory()->useSystemDPI;
-	return (T)(-(b ? POUND_TO_FONTHEIGHT(NULL, (int)pointsize) : POUND_TO_FONTHEIGHT_96DPI((int)pointsize)));
+	return (T)(b ? LOGICAL_UNIT_TO_PIXEL(NULL, (int)pointsize) : LOGICAL_UNIT_TO_PIXEL_96DPI((int)pointsize));
 }
 
 HRESULT LoadTextureFromFile(ID3D11Device* device, LPWSTR fpath, ID3D11ShaderResourceView** pTex, int* pw, int* ph, bool convertpmalpha)

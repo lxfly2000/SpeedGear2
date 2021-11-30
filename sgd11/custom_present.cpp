@@ -72,7 +72,7 @@ public:
 		wchar_t wbuf[32];
 		size_t wbc = 0;
 		C(pSC->GetDesc(&sc_desc));
-		mbstowcs_s(&wbc,wbuf, pMem->fontName, ARRAYSIZE(pMem->fontName));
+		wbc = MultiByteToWideChar(CP_ACP, NULL, pMem->fontName, ARRAYSIZE(pMem->fontName), wbuf, ARRAYSIZE(wbuf));
 		C(LoadFontFromSystem(m_pDevice, spriteFont, 1024, 1024, wbuf, (float)pMem->fontSize, D2D1::ColorF(D2D1::ColorF::White), (DWRITE_FONT_WEIGHT)pMem->fontWeight));
 		float fWidth = (float)sc_desc.BufferDesc.Width, fHeight = (float)sc_desc.BufferDesc.Height;
 		textpos.x = (pMem->statusPosition % 3) / 2.0f * fWidth;

@@ -19,7 +19,7 @@ typedef struct
 	int statusPosition;
 	BOOL useSystemDPI;
 	BOOL fontItalic;
-	DWORD fontSize;//Pound
+	DWORD fontSize;//Point, LOGFONT::lfHeight(Pixel)
 	DWORD fontWeight;
 	DWORD fontColor;
 	char fontName[32];
@@ -27,10 +27,10 @@ typedef struct
 	char fontPath[MAX_PATH];
 }SPEEDGEAR_SHARED_MEMORY;
 
-#define FONTHEIGHT_TO_POUND(hwnd,fs) -MulDiv(fs,72,GetDeviceCaps(GetDC(hwnd),LOGPIXELSY))
-#define POUND_TO_FONTHEIGHT(hwnd,p) -MulDiv(p,GetDeviceCaps(GetDC(hwnd),LOGPIXELSY),72)
-#define FONTHEIGHT_TO_POUND_96DPI(fs) -MulDiv(fs,72,USER_DEFAULT_SCREEN_DPI)
-#define POUND_TO_FONTHEIGHT_96DPI(p) -MulDiv(p,USER_DEFAULT_SCREEN_DPI,72)
+#define PIXEL_TO_LOGICAL_UNIT(hwnd,fs) MulDiv(fs,72,GetDeviceCaps(GetDC(hwnd),LOGPIXELSY))
+#define LOGICAL_UNIT_TO_PIXEL(hwnd,p) MulDiv(p,GetDeviceCaps(GetDC(hwnd),LOGPIXELSY),72)
+#define PIXEL_TO_LOGICAL_UNIT_96DPI(fs) MulDiv(fs,72,USER_DEFAULT_SCREEN_DPI)
+#define LOGICAL_UNIT_TO_PIXEL_96DPI(p) MulDiv(p,USER_DEFAULT_SCREEN_DPI,72)
 #define DPI_SCALED_VALUE(hwnd,x) MulDiv(x,GetDeviceCaps(GetDC(hwnd),LOGPIXELSY),USER_DEFAULT_SCREEN_DPI)
 
 #ifdef __cplusplus
