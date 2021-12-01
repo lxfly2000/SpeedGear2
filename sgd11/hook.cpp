@@ -56,6 +56,7 @@ D3DKMT_WAITFORVERTICALBLANKEVENT getVBlankHandle() {
 
 D3DKMT_WAITFORVERTICALBLANKEVENT wv;
 bool wvget = true;
+bool bUpdateList = true;
 
 HRESULT hrLastPresent = S_OK;
 
@@ -69,6 +70,11 @@ HRESULT __stdcall HookedIDXGISwapChain_Present(IDXGISwapChain* p, UINT SyncInter
 		if (!SpeedGear_InitializeSharedMemory(FALSE))
 			return pfOriginalPresent(p, SyncInterval, Flags);
 		pMem = SpeedGear_GetSharedMemory();
+	}
+	if(bUpdateList)
+	{
+		bUpdateList = false;
+		SGSendMessageUpdateList(SG_UPDATE_LIST_ADD, SG_UPDATE_LIST_API_D3D11, GetCurrentProcessId());
 	}
 	float capturedHookSpeed = pMem->hookSpeed;//线程不安全变量
 	//此时函数被拦截，只能通过指针调用，否则要先把HOOK关闭，调用p->Present，再开启HOOK
@@ -170,6 +176,7 @@ extern "C" __declspec(dllexport) BOOL StartHook()
 //导出以方便在没有DllMain时调用
 extern "C" __declspec(dllexport) BOOL StopHook()
 {
+	SGSendMessageUpdateList(SG_UPDATE_LIST_REMOVE,SG_UPDATE_LIST_API_D3D11, GetCurrentProcessId());
 	if (MH_DisableHook(pfResizeBuffers) != MH_OK)
 		return FALSE;
 	if (MH_DisableHook(pfPresent) != MH_OK)

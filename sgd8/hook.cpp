@@ -57,6 +57,7 @@ D3DKMT_WAITFORVERTICALBLANKEVENT getVBlankHandle() {
 
 D3DKMT_WAITFORVERTICALBLANKEVENT wv;
 bool wvget = true;
+bool bUpdateList = true;
 
 //Present是STDCALL调用方式，只需把THIS指针放在第一项就可按非成员函数调用
 HRESULT __stdcall HookedIDirect3DDevice8_Present(LPDIRECT3DDEVICE8 pDevice, LPCRECT pSrc, LPCRECT pDest, HWND hwnd, const RGNDATA* pRgn)
@@ -69,6 +70,11 @@ HRESULT __stdcall HookedIDirect3DDevice8_Present(LPDIRECT3DDEVICE8 pDevice, LPCR
 		if (!SpeedGear_InitializeSharedMemory(FALSE))
 			return pfOriginalPresent(pDevice, pSrc, pDest, hwnd, pRgn);
 		pMem = SpeedGear_GetSharedMemory();
+	}
+	if(bUpdateList)
+	{
+		bUpdateList = false;
+		SGSendMessageUpdateList(SG_UPDATE_LIST_ADD, SG_UPDATE_LIST_API_D3D8, GetCurrentProcessId());
 	}
 	float capturedHookSpeed = pMem->hookSpeed;//线程不安全变量
 	//此时函数被拦截，只能通过指针调用，否则要先把HOOK关闭，调用p->Present，再开启HOOK
@@ -173,6 +179,7 @@ extern "C" __declspec(dllexport) BOOL StartHook()
 //导出以方便在没有DllMain时调用
 extern "C" __declspec(dllexport) BOOL StopHook()
 {
+	SGSendMessageUpdateList(SG_UPDATE_LIST_REMOVE,SG_UPDATE_LIST_API_D3D8, GetCurrentProcessId());
 	if (MH_DisableHook(pfPresent) != MH_OK)
 		return FALSE;
 	if (MH_DisableHook(pfReset) != MH_OK)

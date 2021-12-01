@@ -53,7 +53,8 @@ D3DKMT_WAITFORVERTICALBLANKEVENT getVBlankHandle() {
 }
 
 D3DKMT_WAITFORVERTICALBLANKEVENT wv;
-BOOL wvget = true;
+bool wvget = true;
+bool bUpdateList = true;
 
 BOOL WINAPI HookedwglSwapBuffers(HDC p)
 {
@@ -65,6 +66,11 @@ BOOL WINAPI HookedwglSwapBuffers(HDC p)
 		if (!SpeedGear_InitializeSharedMemory(FALSE))
 			return pfOriginalSwapBuffers(p);
 		pMem = SpeedGear_GetSharedMemory();
+	}
+	if(bUpdateList)
+	{
+		bUpdateList = false;
+		SGSendMessageUpdateList(SG_UPDATE_LIST_ADD, SG_UPDATE_LIST_API_GL, GetCurrentProcessId());
 	}
 	float capturedHookSpeed = pMem->hookSpeed;//线程不安全变量
 	if (capturedHookSpeed >= 1.0f)
@@ -137,6 +143,7 @@ extern "C" __declspec(dllexport) BOOL StartHook()
 //导出以方便在没有DllMain时调用
 extern "C" __declspec(dllexport) BOOL StopHook()
 {
+	SGSendMessageUpdateList(SG_UPDATE_LIST_REMOVE, SG_UPDATE_LIST_API_GL, GetCurrentProcessId());
 	if (MH_DisableHook(pfViewport) != MH_OK)
 		return FALSE;
 	if (MH_DisableHook(pfSwapBuffers) != MH_OK)

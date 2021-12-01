@@ -4,6 +4,7 @@
 #include <tchar.h>
 #include <stdio.h>
 #include <math.h>
+#include <Psapi.h>
 #include "resource.h"
 #include "../sgshared/sgshared.h"
 
@@ -127,6 +128,7 @@ DECLCBK(OnHotkeySlightFaster);
 DECLCBK(OnHotkeySlightSlower);
 DECLCBK(OnAbout);
 DECLCBK(OnLaunchAnotherArch);
+DECLCBK(OnSGMessageUpdateList);
 INT_PTR OnCtlColorStaticStatusPreview(HWND, UINT, WPARAM, LPARAM);
 
 INT_PTR CALLBACK DlgCallback(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -184,6 +186,7 @@ INT_PTR CALLBACK DlgCallback(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		if (GetDlgCtrlID((HWND)lParam) == IDC_STATIC_STATUS_PREVIEW)
 			return OnCtlColorStaticStatusPreview(hWnd, msg, wParam, lParam);
 		break;
+	case SG_MESSAGE_UPDATE_LIST:ONCBK(OnSGMessageUpdateList); break;
 	}
 	return 0;
 }
@@ -269,6 +272,7 @@ float GetSpeedSlider(HWND hwnd)
 BOOL InitProcessList(HWND hwnd)
 {
 	HWND hList = GetDlgItem(hwnd, IDC_LIST_PROCESS);
+	SendMessage(hList, LVM_SETEXTENDEDLISTVIEWSTYLE, LVS_EX_FULLROWSELECT, LVS_EX_FULLROWSELECT);
 	LVCOLUMN col{};
 	col.mask = LVCF_WIDTH | LVCF_IMAGE;
 	col.cx = DPI_SCALED_VALUE(hList, 24);
@@ -277,13 +281,17 @@ BOOL InitProcessList(HWND hwnd)
 	col.fmt = LVCFMT_RIGHT;
 	SIZE m;
 	GetTextExtentPoint32(GetDC(hList), TEXT("65536"), 5, &m);
-	col.cx = LOGICAL_UNIT_TO_PIXEL(hList, m.cx);
+	int baseWidth = LOGICAL_UNIT_TO_PIXEL(hList, m.cx);
+	col.cx = baseWidth;
 	col.pszText = TEXT("PID");
 	ListView_InsertColumn(hList, 1, &col);
 	col.fmt = LVCFMT_LEFT;
-	col.cx = col.cx * 4;
+	col.cx = baseWidth * 4;
 	col.pszText = TEXT("½ø³ÌÃû");
 	ListView_InsertColumn(hList, 2, &col);
+	col.cx = baseWidth;
+	col.pszText = TEXT("API");
+	ListView_InsertColumn(hList, 3, &col);
 	return TRUE;
 }
 
@@ -586,7 +594,7 @@ BOOL ReleaseKbHook()
 
 BOOL StartSpeedGear()
 {
-	int hookType = INI_READ_INT2("hookType",WH_CBT);
+	int hookType = INI_READ_INT2("hookType",WH_SHELL);
 	char* dllName[] = {
 #ifdef _M_IX86
 		"sgd8.dll","sgd9.dll","sgd11.dll","sggl.dll"
@@ -669,6 +677,7 @@ BOOL OnInitDialog(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		return FALSE;
 	}
 	SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
+	pMem->hwndGui = (DWORD)hMain;
 	pMem->hookSpeed = 1.0f;
 	MemReadIni();
 	GuiReadMem(hWnd);
@@ -942,5 +951,59 @@ BOOL OnLaunchAnotherArch(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		return FALSE;
 	}
 	SendMessage(hWnd, WM_COMMAND, IDCANCEL, 0);
+	return TRUE;
+}
+
+int GetProcessNameW(DWORD pid, LPWSTR buf, int c)
+{
+	HANDLE h = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+	int r = GetProcessImageFileName(h, buf, c);
+	lstrcpy(buf, wcsrchr(buf, '\\') + 1);
+	CloseHandle(h);
+	return r;
+}
+
+BOOL OnSGMessageUpdateList(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	HWND hList = GetDlgItem(hWnd, IDC_LIST_PROCESS);
+	DWORD pid = lParam;
+	TCHAR buf[MAX_PATH]{};
+	TCHAR* szApi[] = { TEXT("NULL"),TEXT("D3D8"),TEXT("D3D9"),TEXT("D3D11"),TEXT("GL") };
+	int iApi = HIWORD(wParam) % ARRAYSIZE(szApi);
+	LVITEM lvi{};
+	int rc = ListView_GetItemCount(hList);
+	switch (LOWORD(wParam))
+	{
+	case SG_UPDATE_LIST_REFRESH:
+		/*TODO*/
+		MessageBox(NULL, TEXT("TODO"), NULL, NULL);
+		break;
+	case SG_UPDATE_LIST_ADD:
+		lvi.mask = LVIF_IMAGE;
+		lvi.iItem = rc;
+		lvi.iSubItem = 0;
+		ListView_InsertItem(hList, &lvi);
+		wsprintf(buf, TEXT("%d"), pid);
+		ListView_SetItemText(hList, rc, 1, buf);
+		GetProcessNameW(pid, buf, ARRAYSIZE(buf));
+		ListView_SetItemText(hList, rc, 2, buf);
+		ListView_SetItemText(hList, rc, 3, szApi[iApi]);
+		break;
+	case SG_UPDATE_LIST_REMOVE:
+		for (int i = 0; i < rc; i++)
+		{
+			ListView_GetItemText(hList, i, 1, buf, ARRAYSIZE(buf));
+			if (pid == _ttoi(buf))
+			{
+				ListView_GetItemText(hList, i, 3, buf, ARRAYSIZE(buf));
+				if (lstrcmp(szApi[iApi], buf) == 0)
+				{
+					ListView_DeleteItem(hList, i);
+					break;
+				}
+			}
+		}
+		break;
+	}
 	return TRUE;
 }

@@ -178,3 +178,24 @@ char* SpeedGear_FormatText(char* buf, int len, const char* fmt, float speed, int
     buf[posBuf] = 0;
     return buf;
 }
+
+BOOL SGSendMessageUpdateList(DWORD option,DWORD api, DWORD pid)
+{
+    SPEEDGEAR_SHARED_MEMORY* m = SpeedGear_GetSharedMemory();
+    if (!m)
+    {
+#ifdef _DEBUG
+        MessageBox(NULL, TEXT("¹²ÏíÄÚ´æÎ´¼ÓÔØ¡£"), NULL, NULL);
+#endif // _DEBUG
+        return FALSE;
+    }
+    if ((HWND)m->hwndGui == NULL)
+    {
+#ifdef _DEBUG
+        MessageBox(NULL, TEXT("´°¿Ú¾ä±úÎ´ÉèÖÃ¡£"), NULL, NULL);
+#endif // _DEBUG
+        return FALSE;
+    }
+    PostMessage((HWND)m->hwndGui, SG_MESSAGE_UPDATE_LIST, MAKEWPARAM(option, api), pid);
+    return TRUE;
+}
