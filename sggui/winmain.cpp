@@ -257,7 +257,7 @@ BOOL InitSpeedSlider(HWND hwnd)
 
 void SetSpeedSlider(HWND hwnd, float speed)
 {
-	char buf[16];
+	char buf[16] = "";
 	sprintf_s(buf, ARRAYSIZE(buf), "%.3f&x", speed);
 	SetDlgItemTextA(hwnd, IDC_BUTTON_SPEED_TEXT, buf);
 	float v = 24.0f + log2f(speed) * 24.0f / 3.0f;
@@ -279,15 +279,15 @@ BOOL InitProcessList(HWND hwnd)
 	ListView_InsertColumn(hList, 0, &col);
 	col.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT;
 	col.fmt = LVCFMT_RIGHT;
-	SIZE m;
-	GetTextExtentPoint32(GetDC(hList), TEXT("65536"), 5, &m);
-	int baseWidth = LOGICAL_UNIT_TO_PIXEL(hList, m.cx);
+	int baseWidth = DPI_SCALED_VALUE(hList, 60);
 	col.cx = baseWidth;
 	col.pszText = TEXT("PID");
 	ListView_InsertColumn(hList, 1, &col);
 	col.fmt = LVCFMT_LEFT;
 	col.cx = baseWidth * 4;
-	col.pszText = TEXT("进程名");
+	TCHAR buf[16] = TEXT("");
+	LoadString(NULL, IDS_STRING_PROCESS_NAME, buf, ARRAYSIZE(buf));
+	col.pszText = buf;
 	ListView_InsertColumn(hList, 2, &col);
 	col.cx = baseWidth;
 	col.pszText = TEXT("API");
@@ -295,7 +295,7 @@ BOOL InitProcessList(HWND hwnd)
 	return TRUE;
 }
 
-char _iniSaveIntBuf[16];
+char _iniSaveIntBuf[16] = "";
 #define INI_READ_INT(key) GetPrivateProfileIntA("SpeedGear",key,0,".\\sg.ini")
 #define INI_READ_INT2(key,def) GetPrivateProfileIntA("SpeedGear",key,def,".\\sg.ini")
 #define INI_SAVE_INT(key,value) wsprintfA(_iniSaveIntBuf,"%d",value);WritePrivateProfileStringA("SpeedGear",key,_iniSaveIntBuf,".\\sg.ini")
@@ -336,7 +336,7 @@ void RefreshPreviewText(HWND hwnd)
 	case 1:SetWindowLong(hStatic, GWL_STYLE, GetWindowStyle(hStatic) | SS_CENTERIMAGE); break;
 	case 2:SetWindowLong(hStatic, GWL_STYLE, GetWindowStyle(hStatic) | SS_CENTERIMAGE); break;
 	}
-	char text[256], fmttext[256];
+	char text[256] = "", fmttext[256] = "";
 	GetEditComboBoxText(GetDlgItem(hwnd, IDC_COMBO_STATUS_FORMAT), text, ARRAYSIZE(text));
 	SpeedGear_FormatText(fmttext, ARRAYSIZE(fmttext), text, 1.0f, 60, 800, 600, 9, 0, 0,"API");
 	SetDlgItemTextA(hwnd, IDC_STATIC_STATUS_PREVIEW, fmttext);
@@ -346,13 +346,16 @@ HWND hFontTip;
 
 void SetButtonFontText(HWND hwnd)
 {
-	char buf[256];
-	wsprintfA(buf, "字体设置(&T) [%s,%d%s,%d,#%06X]", g_logFont.lfFaceName, g_logFont.lfWeight, g_logFont.lfItalic ? ",倾斜" : "", PIXEL_TO_LOGICAL_UNIT(hwnd, abs(g_logFont.lfHeight)), g_cf.rgbColors);
+	char buf[256] = "";
+	char szFontSettings[32] = "", szItalic[16] = ",";
+	LoadStringA(NULL, IDS_STRING_FONT_SETTINGS, szFontSettings, ARRAYSIZE(szFontSettings));
+	LoadStringA(NULL, IDS_STRING_ITALIC, szItalic + 1, ARRAYSIZE(szItalic) - sizeof(*buf));
+	wsprintfA(buf, "%s(&T) [%s,%d%s,%d,#%06X]", szFontSettings, g_logFont.lfFaceName, g_logFont.lfWeight, g_logFont.lfItalic ? szItalic : "", PIXEL_TO_LOGICAL_UNIT(hwnd, abs(g_logFont.lfHeight)), g_cf.rgbColors);
 	if (lstrlenA(g_logFont.lfFaceName) == 0)
 		*strchr(buf, ' ') = 0;
 	SetDlgItemTextA(hwnd, IDC_BUTTON_STATUS_FONT, buf);
-	wsprintfA(buf, "%s,%d%s,%d,#%06X", g_logFont.lfFaceName, g_logFont.lfWeight, g_logFont.lfItalic ? ",倾斜" : "", PIXEL_TO_LOGICAL_UNIT(hwnd, abs(g_logFont.lfHeight)), g_cf.rgbColors);
-	SetToolTipA(GetDlgItem(hwnd, IDC_BUTTON_STATUS_FONT), hFontTip, buf, "字体设置");
+	wsprintfA(buf, "%s,%d%s,%d,#%06X", g_logFont.lfFaceName, g_logFont.lfWeight, g_logFont.lfItalic ? szItalic : "", PIXEL_TO_LOGICAL_UNIT(hwnd, abs(g_logFont.lfHeight)), g_cf.rgbColors);
+	SetToolTipA(GetDlgItem(hwnd, IDC_BUTTON_STATUS_FONT), hFontTip, buf, szFontSettings);
 	HFONT hFont = CreateFontA(g_logFont.lfHeight, 0, 0, 0, g_logFont.lfWeight, g_logFont.lfItalic, 0, 0, DEFAULT_CHARSET, 0, 0, 0, 0, g_logFont.lfFaceName);
 	HWND hStatic = GetDlgItem(hwnd, IDC_STATIC_STATUS_PREVIEW);
 	SendMessage(hStatic, WM_SETFONT, (WPARAM)hFont, TRUE);
@@ -426,8 +429,12 @@ BOOL MemReadIni()
 	pMem->hookMode = INI_READ_INT2("hookMode",1);
 	INI_READ_STR2("statusFormat", pMem->statusFormat, ARRAYSIZE(pMem->statusFormat),"FPS:{fps:%3d}");
 	pMem->statusPosition = INI_READ_INT("statusPosition");
-	INI_READ_STR2("fontName", pMem->fontName, ARRAYSIZE(pMem->fontName),"宋体");
-	INI_READ_STR2("fontPath", pMem->fontPath, ARRAYSIZE(pMem->fontPath),"C:\\Windows\\Fonts\\SimSun.ttc:0");
+	INI_READ_STR2("fontName", pMem->fontName, ARRAYSIZE(pMem->fontName),"SimSun");
+	char szDefaultPath[MAX_PATH] = "";
+	size_t c;
+	getenv_s(&c, szDefaultPath, "windir");
+	lstrcatA(szDefaultPath, "\\Fonts\\SimSun.ttc:0");
+	INI_READ_STR2("fontPath", pMem->fontPath, ARRAYSIZE(pMem->fontPath),szDefaultPath);
 	pMem->useSystemDPI = INI_READ_INT2("useSystemDPI",TRUE);
 	pMem->fontSize = INI_READ_INT2("fontSize",24);
 	pMem->fontItalic = INI_READ_INT("fontItalic");
@@ -602,6 +609,7 @@ BOOL StartSpeedGear()
 		"sg64d9.dll","sg64d11.dll","sg64gl.dll"
 #endif
 	};
+	TCHAR buf[256] = TEXT("");
 	for (int i = 0; i < ARRAYSIZE(dllName); i++)
 	{
 		if (hHookSGList[i])
@@ -610,7 +618,12 @@ BOOL StartSpeedGear()
 		if (hDll == NULL)
 		{
 			StopSpeedGear();
-			MessageBox(NULL, TEXT("无法加载 DLL 文件。"), NULL, MB_ICONERROR);
+			TCHAR msg[256] = TEXT("");
+			DWORD err = GetLastError();
+			wsprintf(msg, TEXT("%#x\n"), err);
+			FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, err, GetUserDefaultLangID(), buf, ARRAYSIZE(buf), NULL);
+			lstrcat(msg, buf);
+			MessageBox(NULL, msg, NULL, MB_ICONERROR);
 			return FALSE;
 		}
 		HOOKPROC fProc = (HOOKPROC)GetProcAddress(hDll, SPEEDGEAR_PROC_STR);
@@ -618,13 +631,17 @@ BOOL StartSpeedGear()
 		if (hHookSGList[i] == NULL)
 		{
 			StopSpeedGear();
-			TCHAR msg[53];
-			wsprintf(msg, TEXT("无法设置Hook：%#x\n请尝试重新启动该程序；如果还是出错则可能是该类型的钩子不受支持，请到配置文件中修改hookType参数。"), GetLastError());
-			MessageBox(NULL, msg, NULL, MB_ICONERROR);
+			TCHAR msg[16] = TEXT("");
+			LoadString(GetModuleHandle(NULL), IDS_STRING_CANNOT_START_HOOK, buf, ARRAYSIZE(buf));
+			wsprintf(msg, TEXT("%#x"), GetLastError());
+			MessageBox(NULL, buf, msg, MB_ICONERROR);
 			return FALSE;
 		}
 	}
-	SetWindowTextA(hMain, DLGTITLE " - 已启动");
+	lstrcpy(buf, TEXT(DLGTITLE " - "));
+	int len = lstrlen(buf);
+	LoadString(GetModuleHandle(NULL), IDS_STRING_RUNNING, buf + len, ARRAYSIZE(buf) - len * sizeof(*buf));
+	SetWindowText(hMain, buf);
 	return TRUE;
 }
 
@@ -654,17 +671,22 @@ BOOL OnInitDialog(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	SendMessage(hWnd, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
 	SendMessage(hWnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
 	hFontTip = CreateToolTipForRectA(GetDlgItem(hWnd, IDC_BUTTON_STATUS_FONT), NULL);
-	CreateToolTipForRectA(GetDlgItem(hWnd, IDC_CHECK_USE_SYSTEM_DPI), "勾选以使用当前系统的DPI数值确定字体大小，\n否则按96DPI处理。");
-	CreateToolTipForRectA(GetDlgItem(hWnd, IDC_BUTTON_SPEED_TEXT), "点击恢复原速");
+	char buf[256] = "";
+	LoadStringA(NULL, IDS_STRING_TIP_USE_SYSTEM_API, buf, ARRAYSIZE(buf));
+	CreateToolTipForRectA(GetDlgItem(hWnd, IDC_CHECK_USE_SYSTEM_DPI), buf);
+	LoadStringA(NULL, IDS_STRING_TIP_RESET_SPEED, buf, ARRAYSIZE(buf));
+	CreateToolTipForRectA(GetDlgItem(hWnd, IDC_BUTTON_SPEED_TEXT), buf);
 	SetWindowTextA(hWnd, DLGTITLE);
 	HMENU hMenu = GetSystemMenu(hWnd, FALSE);
 	AppendMenuA(hMenu, MF_SEPARATOR, 0, 0);
 #ifdef _M_IX86
-	AppendMenuA(hMenu, MF_STRING, ID_MENU_LAUNCH_ANOTHER_ARCH, "切换至 x64 程序(&L)…");
+	LoadStringA(NULL, IDS_STRING_LAUNCH_ARCH_X64, buf, ARRAYSIZE(buf));
 #else
-	AppendMenuA(hMenu, MF_STRING, ID_MENU_LAUNCH_ANOTHER_ARCH, "切换至 x86 程序(&L)…");
+	LoadStringA(NULL, IDS_STRING_LAUNCH_ARCH_X86, buf, ARRAYSIZE(buf));
 #endif
-	AppendMenuA(hMenu, MF_STRING, ID_MENU_ABOUT, "程序信息(&A)…");
+	AppendMenuA(hMenu, MF_STRING, ID_MENU_LAUNCH_ANOTHER_ARCH, buf);
+	LoadStringA(NULL, IDS_STRING_MENU_ABOUT, buf, ARRAYSIZE(buf));
+	AppendMenuA(hMenu, MF_STRING, ID_MENU_ABOUT, buf);
 
 	InitSpeedSlider(hWnd);
 	ComboBox_SetCurSel(GetDlgItem(hWnd, IDC_COMBO_STATUS_BACKGROUND), 0);
@@ -673,7 +695,8 @@ BOOL OnInitDialog(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 	if (SpeedGear_InitializeSharedMemory(TRUE) == FALSE)
 	{
-		MessageBox(hWnd, TEXT("创建共享内存失败。"), NULL, MB_ICONERROR);
+		LoadStringA(NULL, IDS_STRING_INIT_SM_FAIL, buf, ARRAYSIZE(buf));
+		MessageBoxA(hWnd, buf, NULL, MB_ICONERROR);
 		return FALSE;
 	}
 	SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
@@ -704,7 +727,9 @@ BOOL OnEndDialog(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	ReleaseKbHook();
 	if (SpeedGear_ReleaseSharedMemory() == FALSE)
 	{
-		MessageBox(hWnd, TEXT("释放共享内存失败。"), NULL, MB_ICONERROR);
+		char buf[256] = "";
+		LoadStringA(NULL, IDS_STRING_RELEASE_SM_FAIL, buf, ARRAYSIZE(buf));
+		MessageBoxA(hWnd, buf, NULL, MB_ICONERROR);
 	}
 	return FALSE;
 }
@@ -723,7 +748,7 @@ BOOL OnCheckTurnOnOff(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 BOOL OnSliderSpeed(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-	char buf[16];
+	char buf[16] = "";
 	sprintf_s(buf, ARRAYSIZE(buf), "%.3f&x", GetSpeedSlider(hWnd));
 	SetDlgItemTextA(hWnd, IDC_BUTTON_SPEED_TEXT, buf);
 	GuiSaveMem(hWnd);
@@ -733,17 +758,23 @@ BOOL OnSliderSpeed(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 BOOL OnButtonModeHelp(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-	MessageBoxA(hWnd, "变速模式：\n修改时钟API - 修改与时钟相关的API实现变速效果\n修改图形API - 修改图形API显示逻辑实现变速效果\n\n支持修改的图形API如下：\n"
+	char buf[256] = "", szHelp[16] = "";
+	LoadStringA(NULL, IDS_STRING_HELP, szHelp, ARRAYSIZE(szHelp));
+	LoadStringA(NULL, IDS_STRING_MODE_HELP, buf, ARRAYSIZE(buf));
 #ifdef _M_IX86
-		"Direct 3D 8, "
+	lstrcatA(buf, "Direct 3D 8, ");
 #endif
-		"Direct 3D 9, Direct 3D 11, OpenGL", "帮助", MB_OK);
+	lstrcatA(buf, "Direct 3D 9, Direct 3D 11, OpenGL");
+	MessageBoxA(hWnd, buf, szHelp, MB_OK);
 	return TRUE;
 }
 
 BOOL OnButtonStatusHelp(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-	MessageBoxA(hWnd, "你可以在文本中引用下列变量：\n{fps},{speed},{width},{height},{hour},{minute},{second},{api}\n其中你可以在变量中指定格式，例如{fps:%3d}.", "帮助", MB_OK);
+	char buf[256] = "", szHelp[16] = "";
+	LoadStringA(NULL, IDS_STRING_HELP, szHelp, ARRAYSIZE(szHelp));
+	LoadStringA(NULL, IDS_STRING_STATUS_FMT_HELP, buf, ARRAYSIZE(buf));
+	MessageBoxA(hWnd, buf, szHelp, MB_OK);
 	return TRUE;
 }
 
@@ -830,7 +861,7 @@ BOOL OnPaint(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	RECT r;
 	GetClientRect(hStatic, &r);
 	FillRect(hdc, &r, hbr);
-	char t[256];
+	char t[256] = "";
 	GetDlgItemTextA(hWnd, IDC_STATIC_STATUS_PREVIEW, t, ARRAYSIZE(t));
 	SetBkMode(hdc, TRANSPARENT);
 	SetTextColor(hdc, g_cf.rgbColors);
@@ -921,7 +952,9 @@ BOOL OnAbout(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	tdc.dwCommonButtons = TDCBF_OK_BUTTON;
 	tdc.pszWindowTitle = TEXT(APPNAME);
 	tdc.pszMainIcon = TD_INFORMATION_ICON;
-	std::wstring msgWithURL = TEXT("制作：lxfly2000\n\n程序发布地址：\nhttps://github.com/lxfly2000/SpeedGear2");
+	TCHAR buf[256] = TEXT("");
+	LoadString(NULL, IDS_STRING_ABOUT_MSG, buf, ARRAYSIZE(buf));
+	std::wstring msgWithURL = buf;
 	msgWithURL = std::regex_replace(msgWithURL, std::basic_regex<TCHAR>(TEXT("(https?://[A-Za-z0-9_\\-\\./]+)")), TEXT("<a href=\"$1\">$1</a>"));
 	tdc.pszContent = msgWithURL.c_str();
 	tdc.pfCallback = [](HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, LONG_PTR lpRefData)
@@ -947,7 +980,11 @@ BOOL OnLaunchAnotherArch(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 #endif
 	if ((INT_PTR)ShellExecute(hWnd, TEXT("open"), TEXT(LAUNCH_FILE), NULL, NULL, SW_SHOWNORMAL) <= 32)
 	{
-		MessageBoxA(hWnd, LAUNCH_FILE "\n启动失败，请检查文件是否存在。", NULL, MB_ICONERROR);
+		char buf[256] = "";
+		lstrcpyA(buf, LAUNCH_FILE "\n");
+		int len = lstrlenA(buf);
+		LoadStringA(NULL, IDS_STRING_LAUNCH_FAIL, buf + len, ARRAYSIZE(buf) - len * sizeof(*buf));
+		MessageBoxA(hWnd, buf, NULL, MB_ICONERROR);
 		return FALSE;
 	}
 	SendMessage(hWnd, WM_COMMAND, IDCANCEL, 0);
@@ -967,7 +1004,7 @@ BOOL OnSGMessageUpdateList(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	HWND hList = GetDlgItem(hWnd, IDC_LIST_PROCESS);
 	DWORD pid = lParam;
-	TCHAR buf[MAX_PATH]{};
+	TCHAR buf[MAX_PATH] = TEXT("");
 	TCHAR* szApi[] = { TEXT("NULL"),TEXT("D3D8"),TEXT("D3D9"),TEXT("D3D11"),TEXT("GL") };
 	int iApi = HIWORD(wParam) % ARRAYSIZE(szApi);
 	LVITEM lvi{};
