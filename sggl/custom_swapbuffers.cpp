@@ -62,8 +62,6 @@ public:
 		text_shadow_color /= 2.0f;
 
 		GetClientRect(WindowFromDC(dc), &windowrect);
-		calc_text_x = 0;
-		calc_text_y = 0;
 		if (pMem->statusPosition % 3 == 2)
 			anchor_x = 1.0f;
 		else if (pMem->statusPosition % 3 == 1)
@@ -76,6 +74,8 @@ public:
 			anchor_y = 0.5f;
 		else
 			anchor_y = 0.0f;
+		calc_text_x = anchor_x * (windowrect.right - windowrect.left);
+		calc_text_y = anchor_y * (windowrect.bottom - windowrect.top);
 		calc_shadow_x = calc_text_x + shad;
 		calc_shadow_y = calc_text_y + shad;
 		char fn[MAX_PATH];
