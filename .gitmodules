@@ -14,3 +14,6 @@
 	path = freetype-windows-binaries
 	url = https://github.com/ubawurinna/freetype-windows-binaries
 	branch = master
+[submodule "FW1FontWrapper"]
+	path = FW1FontWrapper
+	url = https://github.com/gamelaster/FW1FontWrapper

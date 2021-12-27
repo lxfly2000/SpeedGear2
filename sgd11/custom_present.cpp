@@ -1,7 +1,7 @@
 #include"custom_present.h"
-#include"ResLoader.h"
-#include"..\DirectXTK\Inc\SimpleMath.h"
+#include"..\FW1FontWrapper\FW1FontWrapper\Source\FW1FontWrapper.h"
 #include"..\sgshared\sgshared.h"
+#include<DirectXMath.h>
 #include<map>
 #include<string>
 #include<ctime>
@@ -16,38 +16,29 @@
 class D2DCustomPresent
 {
 private:
-	std::unique_ptr<DirectX::SpriteBatch> spriteBatch;
-	std::unique_ptr<DirectX::SpriteFont> spriteFont;
-	DirectX::SimpleMath::Vector2 textpos;
+	IFW1FontWrapper* fw1FontWrapper;
+	DirectX::XMFLOAT2 textpos;
 	float textanchorpos_x, textanchorpos_y;
 	ID3D11DeviceContext* pContext;
 	ULONGLONG t1, t2;
 	char display_text[256];
+	wchar_t wdisplay_text[256];
 	int current_fps;
 	int shad;
 	UINT period_frames, fcount;
+	float fontSize;
+	UINT fw1Flags;
 
-	DirectX::XMVECTOR calcColor, calcShadowColor;
+	UINT32 calcColor, calcShadowColor;
 	DirectX::XMFLOAT2 calcShadowPos;
 	DXGI_SWAP_CHAIN_DESC sc_desc;
 	ID3D11Device* m_pDevice;
 	IDXGISwapChain* m_pSC;
 public:
 	D2DCustomPresent() :pContext(nullptr), t1(0), t2(0), fcount(0), textanchorpos_x(0), textanchorpos_y(0), calcColor(), calcShadowColor(),
-		calcShadowPos(), current_fps(0), display_text(), m_pDevice(NULL), m_pSC(NULL), period_frames(0), sc_desc(), shad(0)
+		calcShadowPos(), current_fps(0), display_text(), m_pDevice(NULL), m_pSC(NULL), period_frames(0), sc_desc(), shad(0),
+		fw1FontWrapper(nullptr), wdisplay_text(),fontSize(24.0f),fw1Flags(FW1_RESTORESTATE),textpos()
 	{
-	}
-	D2DCustomPresent(D2DCustomPresent&& other)noexcept
-	{
-		spriteBatch = std::move(other.spriteBatch);
-		spriteFont = std::move(other.spriteFont);
-		textpos = std::move(other.textpos);
-		pContext = std::move(other.pContext);
-		t1 = std::move(other.t1);
-		t2 = std::move(other.t2);
-		fcount = std::move(other.fcount);
-		m_pSC = std::move(other.m_pSC);
-		m_pDevice = std::move(other.m_pDevice);
 	}
 	~D2DCustomPresent()
 	{
@@ -60,7 +51,6 @@ public:
 		C(pSC->GetDevice(__uuidof(ID3D11Device), (void**)&pDevice));//这个不需要在释放时调用Release
 		m_pDevice = pDevice;
 		pDevice->GetImmediateContext(&pContext);
-		spriteBatch = std::make_unique<DirectX::SpriteBatch>(pContext);
 		SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
 		if (pMem == NULL)
 		{
@@ -73,22 +63,26 @@ public:
 		size_t wbc = 0;
 		C(pSC->GetDesc(&sc_desc));
 		wbc = MultiByteToWideChar(CP_ACP, NULL, pMem->fontName, ARRAYSIZE(pMem->fontName), wbuf, ARRAYSIZE(wbuf));
-		C(LoadFontFromSystem(m_pDevice, spriteFont, 1024, 1024, wbuf, (float)pMem->fontSize, D2D1::ColorF(D2D1::ColorF::White), (DWRITE_FONT_WEIGHT)pMem->fontWeight));
+		IFW1Factory* fw1Factory;
+		C(FW1CreateFactory(FW1_VERSION, &fw1Factory));
+		C(fw1Factory->CreateFontWrapper(pDevice, wbuf, &fw1FontWrapper));
+		fw1Factory->Release();
+		fontSize = pMem->useSystemDPI ? LOGICAL_UNIT_TO_PIXEL(sc_desc.OutputWindow, pMem->fontSize) : LOGICAL_UNIT_TO_PIXEL_96DPI(pMem->fontSize);
 		float fWidth = (float)sc_desc.BufferDesc.Width, fHeight = (float)sc_desc.BufferDesc.Height;
 		textpos.x = (pMem->statusPosition % 3) / 2.0f * fWidth;
 		textpos.y = (pMem->statusPosition / 3) / 2.0f * fHeight;
 		if (pMem->statusPosition % 3 == 2)
-			textanchorpos_x = 1.0f;
+			fw1Flags |= FW1_RIGHT;
 		else if (pMem->statusPosition % 3 == 1)
-			textanchorpos_x = 0.5f;
+			fw1Flags |= FW1_CENTER;
 		else
-			textanchorpos_x = 0.0f;
+			fw1Flags |= FW1_LEFT;
 		if (pMem->statusPosition / 3 == 2)
-			textanchorpos_y = 1.0f;
+			fw1Flags |= FW1_BOTTOM;
 		else if (pMem->statusPosition / 3 == 1)
-			textanchorpos_y = 0.5f;
+			fw1Flags |= FW1_VCENTER;
 		else
-			textanchorpos_y = 0.0f;
+			fw1Flags |= FW1_TOP;
 		shad = pMem->useSystemDPI ? DPI_SCALED_VALUE(sc_desc.OutputWindow, 2) : 2;
 		//注意此处根据微软官方文档的说明，此处的分母是可以指定为0的！！
 		period_frames = sc_desc.BufferDesc.RefreshRate.Numerator / max(1, sc_desc.BufferDesc.RefreshRate.Denominator);
@@ -98,15 +92,9 @@ public:
 			EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm);
 			period_frames = dm.dmDisplayFrequency;
 		}
-		calcShadowPos = DirectX::SimpleMath::Vector2(textpos.x + shad, textpos.y + shad);
-		DirectX::XMFLOAT4 xm = DirectX::XMFLOAT4((pMem->fontColor & 0xFF) / 255.0f, ((pMem->fontColor >> 8) & 0xFF) / 255.0f,
-			((pMem->fontColor >> 16) & 0xFF) / 255.0f, 1.0f);
-		calcColor = DirectX::XMLoadFloat4(&xm);
-		xm.x /= 2.0f;
-		xm.y /= 2.0f;
-		xm.z /= 2.0f;
-		xm.w /= 2.0f;
-		calcShadowColor = DirectX::XMLoadFloat4(&xm);
+		calcShadowPos = { textpos.x + shad, textpos.y + shad };
+		calcColor = pMem->fontColor | 0xFF000000;
+		calcShadowColor = (calcColor & 0xFEFEFEFE) >> 1;
 
 		return TRUE;
 	}
@@ -121,13 +109,14 @@ public:
 		SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
 		textpos.x = (pMem->statusPosition % 3) / 2.0f * fWidth;
 		textpos.y = (pMem->statusPosition / 3) / 2.0f * fHeight;
-		calcShadowPos = DirectX::SimpleMath::Vector2(textpos.x + shad, textpos.y + shad);
+		calcShadowPos = { textpos.x + shad, textpos.y + shad };
 	}
 	void Uninit()
 	{
 		if (pContext)
 		{
 			pContext->Release();
+			fw1FontWrapper->Release();
 		}
 	}
 	void Draw()
@@ -146,6 +135,7 @@ public:
 			SPEEDGEAR_SHARED_MEMORY* pMem = SpeedGear_GetSharedMemory();
 			SpeedGear_FormatText(display_text, ARRAYSIZE(display_text), pMem->statusFormat, pMem->hookSpeed, current_fps,
 				sc_desc.BufferDesc.Width, sc_desc.BufferDesc.Height, tm1.tm_hour, tm1.tm_min, tm1.tm_sec,"D3D11");
+			MultiByteToWideChar(CP_ACP, NULL, display_text, ARRAYSIZE(display_text), wdisplay_text, ARRAYSIZE(wdisplay_text));
 		}
 		//当Viewport大小为0时SpriteBatch会引发异常
 		UINT nvp = 1;
@@ -153,58 +143,8 @@ public:
 		pContext->RSGetViewports(&nvp, &vp);
 		if (nvp < 1 || vp.Width == 0 || vp.Height == 0)
 			return;
-		//使用SpriteBatch会破坏之前的渲染器状态并且不会自动保存和恢复原状态，画图前应先保存原来的状态，完成后恢复
-		//参考：https://github.com/Microsoft/DirectXTK/wiki/SpriteBatch#state-management
-		//https://github.com/ocornut/imgui/blob/master/examples/imgui_impl_dx11.cpp#L130
-		//在我写的另一个程序里测试时发现只要运行Hook后不管是否停止都没法再画出三角形了，可能有的资源是无法恢复的吧
-#pragma region 获取原来的状态
-		ID3D11BlendState* blendState; FLOAT blendFactor[4]; UINT sampleMask;
-		ID3D11SamplerState* samplerStateVS0;
-		ID3D11DepthStencilState* depthStencilState; UINT stencilRef;
-		ID3D11Buffer* indexBuffer; DXGI_FORMAT indexBufferFormat; UINT indexBufferOffset;
-		ID3D11InputLayout* inputLayout;
-		ID3D11PixelShader* pixelShader; ID3D11ClassInstance* psClassInstances[256]; UINT psNClassInstances = 256;
-		D3D11_PRIMITIVE_TOPOLOGY primitiveTopology;
-		ID3D11RasterizerState* rasterState;
-		ID3D11SamplerState* samplerStatePS0;
-		ID3D11ShaderResourceView* resourceViewPS0;
-		ID3D11Buffer* vb0; UINT stridesVB0, offsetVB0;
-		ID3D11VertexShader* vertexShader; ID3D11ClassInstance* vsClassInstances[256]; UINT vsNClassInstances = 256;
-		pContext->OMGetBlendState(&blendState, blendFactor, &sampleMask);
-		pContext->VSGetSamplers(0, 1, &samplerStateVS0);
-		pContext->OMGetDepthStencilState(&depthStencilState, &stencilRef);
-		pContext->IAGetIndexBuffer(&indexBuffer, &indexBufferFormat, &indexBufferOffset);
-		pContext->IAGetInputLayout(&inputLayout);//Need check
-		pContext->PSGetShader(&pixelShader, psClassInstances, &psNClassInstances);//Need check
-		pContext->IAGetPrimitiveTopology(&primitiveTopology);
-		pContext->RSGetState(&rasterState);
-		pContext->PSGetSamplers(0, 1, &samplerStatePS0);//Need check
-		pContext->PSGetShaderResources(0, 1, &resourceViewPS0);
-		pContext->IAGetVertexBuffers(0, 1, &vb0, &stridesVB0, &offsetVB0);
-		pContext->VSGetShader(&vertexShader, vsClassInstances, &vsNClassInstances);//Need check
-#pragma endregion
-#pragma region 用SpriteBatch绘制
-		spriteBatch->Begin();
-		auto v = spriteFont->MeasureString(display_text);
-		DirectX::XMFLOAT2 textanchorpos = { textanchorpos_x * DirectX::XMVectorGetX(v),textanchorpos_y * DirectX::XMVectorGetY(v) };
-		spriteFont->DrawString(spriteBatch.get(), display_text, calcShadowPos, calcShadowColor, 0.0f, textanchorpos);
-		spriteFont->DrawString(spriteBatch.get(), display_text, textpos, calcColor, 0.0f, textanchorpos);
-		spriteBatch->End();
-#pragma endregion
-#pragma region 恢复原来的状态
-		pContext->OMSetBlendState(blendState, blendFactor, sampleMask);
-		pContext->VSSetSamplers(0, 1, &samplerStateVS0);
-		pContext->OMSetDepthStencilState(depthStencilState, stencilRef);
-		pContext->IASetIndexBuffer(indexBuffer, indexBufferFormat, indexBufferOffset);
-		pContext->IASetInputLayout(inputLayout);
-		pContext->PSSetShader(pixelShader, psClassInstances, psNClassInstances);
-		pContext->IASetPrimitiveTopology(primitiveTopology);
-		pContext->RSSetState(rasterState);
-		pContext->PSSetSamplers(0, 1, &samplerStatePS0);
-		pContext->PSSetShaderResources(0, 1, &resourceViewPS0);
-		pContext->IASetVertexBuffers(0, 1, &vb0, &stridesVB0, &offsetVB0);
-		pContext->VSSetShader(vertexShader, vsClassInstances, vsNClassInstances);
-#pragma endregion
+		fw1FontWrapper->DrawString(pContext, wdisplay_text, fontSize, calcShadowPos.x, calcShadowPos.y, calcShadowColor, fw1Flags);
+		fw1FontWrapper->DrawString(pContext, wdisplay_text, fontSize, textpos.x, textpos.y, calcColor, fw1Flags);
 	}
 };
 
