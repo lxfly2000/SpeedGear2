@@ -19,6 +19,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sggl", "sggl\sggl.vcxproj",
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FW1FontWrapper", "FW1FontWrapper\FW1FontWrapper\FW1FontWrapper.vcxproj", "{9F62DB07-EA42-4388-82AB-E6FAA371F353}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sgd10", "sgd10\sgd10.vcxproj", "{7AB4448D-EB83-41F0-973F-D762F75DA125}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -123,6 +125,18 @@ Global
 		{9F62DB07-EA42-4388-82AB-E6FAA371F353}.Release|Win32.Build.0 = Release|Win32
 		{9F62DB07-EA42-4388-82AB-E6FAA371F353}.Release|x64.ActiveCfg = Release|x64
 		{9F62DB07-EA42-4388-82AB-E6FAA371F353}.Release|x64.Build.0 = Release|x64
+		{7AB4448D-EB83-41F0-973F-D762F75DA125}.Debug|Win32.ActiveCfg = Debug|Win32
+		{7AB4448D-EB83-41F0-973F-D762F75DA125}.Debug|Win32.Build.0 = Debug|Win32
+		{7AB4448D-EB83-41F0-973F-D762F75DA125}.Debug|x64.ActiveCfg = Debug|x64
+		{7AB4448D-EB83-41F0-973F-D762F75DA125}.Debug|x64.Build.0 = Debug|x64
+		{7AB4448D-EB83-41F0-973F-D762F75DA125}.Profile|Win32.ActiveCfg = Debug|Win32
+		{7AB4448D-EB83-41F0-973F-D762F75DA125}.Profile|Win32.Build.0 = Debug|Win32
+		{7AB4448D-EB83-41F0-973F-D762F75DA125}.Profile|x64.ActiveCfg = Debug|x64
+		{7AB4448D-EB83-41F0-973F-D762F75DA125}.Profile|x64.Build.0 = Debug|x64
+		{7AB4448D-EB83-41F0-973F-D762F75DA125}.Release|Win32.ActiveCfg = Release|Win32
+		{7AB4448D-EB83-41F0-973F-D762F75DA125}.Release|Win32.Build.0 = Release|Win32
+		{7AB4448D-EB83-41F0-973F-D762F75DA125}.Release|x64.ActiveCfg = Release|x64
+		{7AB4448D-EB83-41F0-973F-D762F75DA125}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
