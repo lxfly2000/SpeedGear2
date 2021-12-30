@@ -604,9 +604,9 @@ BOOL StartSpeedGear()
 	int hookType = INI_READ_INT2("hookType",WH_SHELL);
 	char* dllName[] = {
 #ifdef _M_IX86
-		"sgd8.dll","sgd9.dll","sgd11.dll","sggl.dll"
+		"sgd8.dll","sgd9.dll","sgd11.dll","sggl.dll","sgd10.dll","sgdd.dll","sgvk.dll"
 #else
-		"sg64d9.dll","sg64d11.dll","sg64gl.dll"
+		"sg64d9.dll","sg64d11.dll","sg64gl.dll","sg64d10.dll","sg64dd.dll","sg64vk.dll"
 #endif
 	};
 	TCHAR buf[256] = TEXT("");
@@ -706,6 +706,9 @@ BOOL OnInitDialog(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	GuiReadMem(hWnd);
 	RefreshPreviewText(hWnd);
 	InitKbHook();
+
+	ComboBox_DeleteString(GetDlgItem(hWnd, IDC_COMBO_MODE), 0);
+	ComboBox_SetCurSel(GetDlgItem(hWnd, IDC_COMBO_MODE), 0);
 
 	return TRUE;
 }
@@ -1005,7 +1008,7 @@ BOOL OnSGMessageUpdateList(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	HWND hList = GetDlgItem(hWnd, IDC_LIST_PROCESS);
 	DWORD pid = lParam;
 	TCHAR buf[MAX_PATH] = TEXT("");
-	TCHAR* szApi[] = { TEXT("NULL"),TEXT("D3D8"),TEXT("D3D9"),TEXT("D3D11"),TEXT("GL") };
+	TCHAR* szApi[] = { TEXT("NULL"),TEXT("D3D8"),TEXT("D3D9"),TEXT("D3D11"),TEXT("GL"),TEXT("D3D10"),TEXT("DDraw"),TEXT("Vulkan") };
 	int iApi = HIWORD(wParam) % ARRAYSIZE(szApi);
 	LVITEM lvi{};
 	int rc = ListView_GetItemCount(hList);
