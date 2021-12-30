@@ -6,7 +6,7 @@ SpeedGear with a unified GUI.
 ## 支持的API
 |API|x86|x64|
 |-|-|-|
-|DDraw|:x:|:x:|
+|DDraw|:ballot_box_with_check:|:ballot_box_with_check:|
 |D3D8|:white_check_mark:|:no_entry_sign:|
 |D3D9|:white_check_mark:|:white_check_mark:|
 |D3D10|:ballot_box_with_check:|:ballot_box_with_check:|
