@@ -584,7 +584,7 @@ LRESULT CALLBACK KbHookProc(int nCode,WPARAM wParam,LPARAM lParam)
 	return CallNextHookEx(hHookKb, nCode, wParam, lParam);
 }
 
-HHOOK hHookSGList[4] = { NULL };
+HHOOK hHookSGList[8] = { NULL };
 
 BOOL InitKbHook()
 {
@@ -609,16 +609,22 @@ BOOL StartSpeedGear()
 		"sg64d9.dll","sg64d11.dll","sg64gl.dll","sg64d10.dll","sg64dd.dll","sg64vk.dll","sg64d12.dll"
 #endif
 	};
+#ifdef _M_IX86
+	static_assert(ARRAYSIZE(hHookSGList) == ARRAYSIZE(dllName), "Count doesn't match.");
+#else
+	static_assert(ARRAYSIZE(hHookSGList) == ARRAYSIZE(dllName) + 1, "Count doesn't match.");
+#endif
 	char buf[256] = "";
+	int success_count = 0;
+	lstrcpyA(buf, DLGTITLE " - ");
+	int len = lstrlenA(buf);
+	LoadStringA(GetModuleHandle(NULL), IDS_STRING_RUNNING, buf + len, ARRAYSIZE(buf) - len * sizeof(*buf));
 	for (int i = 0; i < ARRAYSIZE(dllName); i++)
 	{
 		if (hHookSGList[i])
-			return FALSE;
-	}
-	for (int i = 0; i < ARRAYSIZE(dllName); i++)
-	{
+			UnhookWindowsHookEx(hHookSGList[i]);
 		HMODULE hDll = LoadLibraryA(dllName[i]);
-		if (hDll == NULL)
+		/*if (hDll == NULL)
 		{
 			StopSpeedGear();
 			char msg[256] = "";
@@ -628,16 +634,12 @@ BOOL StartSpeedGear()
 			lstrcatA(msg, buf);
 			MessageBoxA(NULL, msg, NULL, MB_ICONERROR);
 			return FALSE;
+		}*/
+		if (hDll)
+		{
+			HOOKPROC fProc = (HOOKPROC)GetProcAddress(hDll, SPEEDGEAR_PROC_STR);
+			hHookSGList[i] = SetWindowsHookEx(hookType, fProc, hDll, 0);
 		}
-		HOOKPROC fProc = (HOOKPROC)GetProcAddress(hDll, SPEEDGEAR_PROC_STR);
-		hHookSGList[i] = SetWindowsHookEx(hookType, fProc, hDll, 0);
-	}
-	lstrcpyA(buf, DLGTITLE " - ");
-	int len = lstrlenA(buf);
-	LoadStringA(GetModuleHandle(NULL), IDS_STRING_RUNNING, buf + len, ARRAYSIZE(buf) - len * sizeof(*buf));
-	int success_count = 0;
-	for (int i = 0; i < ARRAYSIZE(dllName); i++)
-	{
 		/*if (hHookSGList[i] == NULL)
 		{
 			StopSpeedGear();
