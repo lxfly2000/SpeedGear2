@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.31229.75
+# Visual Studio 15
+VisualStudioVersion = 15.0.28307.1758
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sggui", "sggui\sggui.vcxproj", "{8DF98B6D-30B4-4580-A085-F878CCD90B6D}"
 EndProject
@@ -20,6 +20,8 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FW1FontWrapper", "FW1FontWrapper\FW1FontWrapper\FW1FontWrapper.vcxproj", "{9F62DB07-EA42-4388-82AB-E6FAA371F353}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sgd10", "sgd10\sgd10.vcxproj", "{7AB4448D-EB83-41F0-973F-D762F75DA125}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sgdd", "sgdd\sgdd.vcxproj", "{40AB34E5-85F9-4112-A9E1-D5506181A377}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -137,6 +139,18 @@ Global
 		{7AB4448D-EB83-41F0-973F-D762F75DA125}.Release|Win32.Build.0 = Release|Win32
 		{7AB4448D-EB83-41F0-973F-D762F75DA125}.Release|x64.ActiveCfg = Release|x64
 		{7AB4448D-EB83-41F0-973F-D762F75DA125}.Release|x64.Build.0 = Release|x64
+		{40AB34E5-85F9-4112-A9E1-D5506181A377}.Debug|Win32.ActiveCfg = Debug|Win32
+		{40AB34E5-85F9-4112-A9E1-D5506181A377}.Debug|Win32.Build.0 = Debug|Win32
+		{40AB34E5-85F9-4112-A9E1-D5506181A377}.Debug|x64.ActiveCfg = Debug|x64
+		{40AB34E5-85F9-4112-A9E1-D5506181A377}.Debug|x64.Build.0 = Debug|x64
+		{40AB34E5-85F9-4112-A9E1-D5506181A377}.Profile|Win32.ActiveCfg = Release|Win32
+		{40AB34E5-85F9-4112-A9E1-D5506181A377}.Profile|Win32.Build.0 = Release|Win32
+		{40AB34E5-85F9-4112-A9E1-D5506181A377}.Profile|x64.ActiveCfg = Release|x64
+		{40AB34E5-85F9-4112-A9E1-D5506181A377}.Profile|x64.Build.0 = Release|x64
+		{40AB34E5-85F9-4112-A9E1-D5506181A377}.Release|Win32.ActiveCfg = Release|Win32
+		{40AB34E5-85F9-4112-A9E1-D5506181A377}.Release|Win32.Build.0 = Release|Win32
+		{40AB34E5-85F9-4112-A9E1-D5506181A377}.Release|x64.ActiveCfg = Release|x64
+		{40AB34E5-85F9-4112-A9E1-D5506181A377}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
