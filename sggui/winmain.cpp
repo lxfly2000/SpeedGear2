@@ -1026,7 +1026,7 @@ BOOL OnSGMessageUpdateList(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	HWND hList = GetDlgItem(hWnd, IDC_LIST_PROCESS);
 	DWORD pid = lParam;
 	TCHAR buf[MAX_PATH] = TEXT("");
-	TCHAR* szApi[] = { TEXT("NULL"),TEXT("D3D8"),TEXT("D3D9"),TEXT("D3D11"),TEXT("GL"),TEXT("D3D10"),TEXT("DDraw"),TEXT("Vulkan") };
+	TCHAR* szApi[] = { TEXT("NULL"),TEXT("D3D8"),TEXT("D3D9"),TEXT("D3D11"),TEXT("GL"),TEXT("D3D10"),TEXT("DDraw"),TEXT("Vulkan"),TEXT("D3D12") };
 	int iApi = HIWORD(wParam) % ARRAYSIZE(szApi);
 	LVITEM lvi{};
 	int rc = ListView_GetItemCount(hList);
