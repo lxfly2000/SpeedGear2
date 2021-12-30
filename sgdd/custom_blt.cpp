@@ -104,7 +104,17 @@ public:
 		color_shadow = RGB((pMem->fontColor & 0xFF) / 2, ((pMem->fontColor >> 8) & 0xFF) / 2, ((pMem->fontColor >> 16) & 0xFF) / 2);
 		color_text = RGB(pMem->fontColor & 0xFF, (pMem->fontColor >> 8) & 0xFF, (pMem->fontColor >> 16) & 0xFF);
 		period_frames = desc.dwRefreshRate;
-
+		if (period_frames == 0)
+		{
+			sFront->GetSurfaceDesc(&desc);
+			period_frames = desc.dwRefreshRate;
+		}
+		if (period_frames == 0)
+		{
+			DEVMODE dm;
+			EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm);
+			period_frames = dm.dmDisplayFrequency;
+		}
 		return TRUE;
 	}
 	void Uninit()
