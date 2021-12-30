@@ -783,9 +783,9 @@ BOOL OnButtonModeHelp(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	LoadStringA(NULL, IDS_STRING_HELP, szHelp, ARRAYSIZE(szHelp));
 	LoadStringA(NULL, IDS_STRING_MODE_HELP, buf, ARRAYSIZE(buf));
 #ifdef _M_IX86
-	lstrcatA(buf, "Direct 3D 8, ");
+	lstrcatA(buf, "Direct3D 8, ");
 #endif
-	lstrcatA(buf, "Direct 3D 9, Direct 3D 11, OpenGL");
+	lstrcatA(buf, "Direct3D 9, Direct3D 10, Direct3D 11, Direct3D 12, DirectDraw, OpenGL, Vulkan");
 	MessageBoxA(hWnd, buf, szHelp, MB_OK);
 	return TRUE;
 }
