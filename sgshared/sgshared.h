@@ -39,6 +39,7 @@ typedef struct
 #define SG_UPDATE_LIST_API_D3D10 5
 #define SG_UPDATE_LIST_API_DDRAW 6
 #define SG_UPDATE_LIST_API_VULKAN 7
+#define SG_UPDATE_LIST_API_D3D12 8
 
 #define PIXEL_TO_LOGICAL_UNIT(hwnd,fs) MulDiv(fs,72,GetDeviceCaps(GetDC(hwnd),LOGPIXELSY))
 #define LOGICAL_UNIT_TO_PIXEL(hwnd,p) MulDiv(p,GetDeviceCaps(GetDC(hwnd),LOGPIXELSY),72)

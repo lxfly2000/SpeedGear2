@@ -604,31 +604,41 @@ BOOL StartSpeedGear()
 	int hookType = INI_READ_INT2("hookType",WH_SHELL);
 	char* dllName[] = {
 #ifdef _M_IX86
-		"sgd8.dll","sgd9.dll","sgd11.dll","sggl.dll","sgd10.dll","sgdd.dll","sgvk.dll"
+		"sgd8.dll","sgd9.dll","sgd11.dll","sggl.dll","sgd10.dll","sgdd.dll","sgvk.dll","sgd12.dll"
 #else
-		"sg64d9.dll","sg64d11.dll","sg64gl.dll","sg64d10.dll","sg64dd.dll","sg64vk.dll"
+		"sg64d9.dll","sg64d11.dll","sg64gl.dll","sg64d10.dll","sg64dd.dll","sg64vk.dll","sg64d12.dll"
 #endif
 	};
-	TCHAR buf[256] = TEXT("");
+	char buf[256] = "";
 	for (int i = 0; i < ARRAYSIZE(dllName); i++)
 	{
 		if (hHookSGList[i])
 			return FALSE;
+	}
+	for (int i = 0; i < ARRAYSIZE(dllName); i++)
+	{
 		HMODULE hDll = LoadLibraryA(dllName[i]);
 		if (hDll == NULL)
 		{
 			StopSpeedGear();
-			TCHAR msg[256] = TEXT("");
+			char msg[256] = "";
 			DWORD err = GetLastError();
-			wsprintf(msg, TEXT("%#x\n"), err);
-			FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, err, GetUserDefaultLangID(), buf, ARRAYSIZE(buf), NULL);
-			lstrcat(msg, buf);
-			MessageBox(NULL, msg, NULL, MB_ICONERROR);
+			wsprintfA(msg, "%#x\n", err);
+			FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM, NULL, err, GetUserDefaultLangID(), buf, ARRAYSIZE(buf), NULL);
+			lstrcatA(msg, buf);
+			MessageBoxA(NULL, msg, NULL, MB_ICONERROR);
 			return FALSE;
 		}
 		HOOKPROC fProc = (HOOKPROC)GetProcAddress(hDll, SPEEDGEAR_PROC_STR);
 		hHookSGList[i] = SetWindowsHookEx(hookType, fProc, hDll, 0);
-		if (hHookSGList[i] == NULL)
+	}
+	lstrcpyA(buf, DLGTITLE " - ");
+	int len = lstrlenA(buf);
+	LoadStringA(GetModuleHandle(NULL), IDS_STRING_RUNNING, buf + len, ARRAYSIZE(buf) - len * sizeof(*buf));
+	int success_count = 0;
+	for (int i = 0; i < ARRAYSIZE(dllName); i++)
+	{
+		/*if (hHookSGList[i] == NULL)
 		{
 			StopSpeedGear();
 			TCHAR msg[16] = TEXT("");
@@ -636,12 +646,20 @@ BOOL StartSpeedGear()
 			wsprintf(msg, TEXT("%#x"), GetLastError());
 			MessageBox(NULL, buf, msg, MB_ICONERROR);
 			return FALSE;
+		}*/
+		if (hHookSGList[i])
+		{
+			if (success_count == 0)
+				lstrcatA(buf, " [");
+			else
+				lstrcatA(buf, ", ");
+			lstrcatA(buf, dllName[i]);
+			success_count++;
 		}
 	}
-	lstrcpy(buf, TEXT(DLGTITLE " - "));
-	int len = lstrlen(buf);
-	LoadString(GetModuleHandle(NULL), IDS_STRING_RUNNING, buf + len, ARRAYSIZE(buf) - len * sizeof(*buf));
-	SetWindowText(hMain, buf);
+	if (success_count > 0)
+		lstrcatA(buf, "]");
+	SetWindowTextA(hMain, buf);
 	return TRUE;
 }
 
