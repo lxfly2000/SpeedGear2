@@ -12,6 +12,7 @@
 #include <regex>
 
 #pragma comment(lib,"ComCtl32.lib")
+#pragma comment(lib,"psapi.lib")
 
 //MFC资源初始化补充代码
 
@@ -99,6 +100,13 @@ void SetToolTipA(HWND hwndParent,HWND hwndTool, LPSTR msg,LPSTR title)
 #define ID_MENU_LAUNCH_ANOTHER_ARCH 1
 #define ID_MENU_ABOUT 2
 
+#ifdef _DEBUG
+#define IDC_DEBUG1 9000
+void DebugInit(HWND hwnd);
+void DebugTest(HWND hwnd);
+#endif // _DEBUG
+
+
 //对话框回调主函数
 
 #define ONCBK(x) if(x(hWnd,msg,wParam,lParam)==TRUE)return TRUE
@@ -133,6 +141,12 @@ INT_PTR OnCtlColorStaticStatusPreview(HWND, UINT, WPARAM, LPARAM);
 
 INT_PTR CALLBACK DlgCallback(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+#ifdef _DEBUG
+	if (msg == WM_INITDIALOG)
+		DebugInit(hWnd);
+	else if (msg == WM_COMMAND && LOWORD(wParam) == IDC_DEBUG1)
+		DebugTest(hWnd);
+#endif
 	switch (msg)
 	{
 	case WM_INITDIALOG:ONCBK(OnInitDialog);break;
@@ -269,12 +283,14 @@ float GetSpeedSlider(HWND hwnd)
 	return powf(2.0f, (SendMessage(GetDlgItem(hwnd, IDC_SLIDER_SPEED), TBM_GETPOS, 0, 0) - 24.0f) * 3.0f / 24.0f);
 }
 
+HIMAGELIST g_imageList;
+
 BOOL InitProcessList(HWND hwnd)
 {
 	HWND hList = GetDlgItem(hwnd, IDC_LIST_PROCESS);
 	SendMessage(hList, LVM_SETEXTENDEDLISTVIEWSTYLE, LVS_EX_FULLROWSELECT, LVS_EX_FULLROWSELECT);
 	LVCOLUMN col{};
-	col.mask = LVCF_WIDTH | LVCF_IMAGE;
+	col.mask = LVCF_WIDTH;
 	col.cx = DPI_SCALED_VALUE(hList, 24);
 	ListView_InsertColumn(hList, 0, &col);
 	col.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT;
@@ -292,6 +308,17 @@ BOOL InitProcessList(HWND hwnd)
 	col.cx = baseWidth;
 	col.pszText = TEXT("API");
 	ListView_InsertColumn(hList, 3, &col);
+
+	//获取图标尺寸
+	RECT rcIcon;
+	LVITEM item{};
+	item.mask = LVIF_TEXT | LVIF_IMAGE;
+	ListView_InsertItem(hList, &item);
+	ListView_GetItemRect(hList, 0, &rcIcon, LVIR_ICON);
+	ListView_DeleteItem(hList, 0);
+	g_imageList = ImageList_Create(rcIcon.bottom - rcIcon.top, rcIcon.bottom - rcIcon.top, ILC_COLOR32, 0, 1);
+	ListView_SetImageList(hList, g_imageList, LVSIL_SMALL);
+
 	return TRUE;
 }
 
@@ -1014,11 +1041,58 @@ BOOL OnLaunchAnotherArch(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	return TRUE;
 }
 
-int GetProcessNameW(DWORD pid, LPWSTR buf, int c)
+BOOL DosDevicePath2LogicalPath(LPCTSTR lpszDosPath, LPTSTR out)
+{
+	// Translate path with device name to drive letters.
+	TCHAR szTemp[MAX_PATH];
+	szTemp[0] = '\0';
+
+	if (lpszDosPath == NULL || !GetLogicalDriveStrings(_countof(szTemp) - 1, szTemp)) {
+		return FALSE;
+	}
+
+
+	TCHAR szName[MAX_PATH];
+	TCHAR szDrive[3] = TEXT(" :");
+	BOOL bFound = FALSE;
+	TCHAR* p = szTemp;
+
+	do {
+		// Copy the drive letter to the template string
+		*szDrive = *p;
+
+		// Look up each device name
+		if (QueryDosDevice(szDrive, szName, _countof(szName))) {
+			UINT uNameLen = (UINT)_tcslen(szName);
+
+			if (uNameLen < MAX_PATH)
+			{
+				bFound = _tcsnicmp(lpszDosPath, szName, uNameLen) == 0;
+
+				if (bFound) {
+					// Reconstruct pszFilename using szTemp
+					// Replace device path with DOS path
+					TCHAR szTempFile[MAX_PATH];
+					_stprintf_s(szTempFile, TEXT("%s%s"), szDrive, lpszDosPath + uNameLen);
+					lstrcpy(out, szTempFile);
+				}
+			}
+		}
+
+		// Go to the next NULL character.
+		while (*p++);
+	} while (!bFound && *p); // end of string
+
+	return TRUE;
+}
+
+int SGGetProcessName(DWORD pid, LPWSTR buf, int c, bool fullpath)
 {
 	HANDLE h = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
 	int r = GetProcessImageFileName(h, buf, c);
-	lstrcpy(buf, wcsrchr(buf, '\\') + 1);
+	DosDevicePath2LogicalPath(buf, buf);
+	if (!fullpath)
+		lstrcpy(buf, wcsrchr(buf, '\\') + 1);
 	CloseHandle(h);
 	return r;
 }
@@ -1042,10 +1116,13 @@ BOOL OnSGMessageUpdateList(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		lvi.mask = LVIF_IMAGE;
 		lvi.iItem = rc;
 		lvi.iSubItem = 0;
+		SGGetProcessName(pid, buf, ARRAYSIZE(buf), true);
+		lvi.iImage = ImageList_AddIcon(g_imageList, ExtractIcon(GetModuleHandle(NULL), buf, 0));
 		ListView_InsertItem(hList, &lvi);
 		wsprintf(buf, TEXT("%d"), pid);
 		ListView_SetItemText(hList, rc, 1, buf);
-		GetProcessNameW(pid, buf, ARRAYSIZE(buf));
+		lstrcpy(buf, wcsrchr(buf, '\\') + 1);
+		SGGetProcessName(pid, buf, ARRAYSIZE(buf), false);
 		ListView_SetItemText(hList, rc, 2, buf);
 		ListView_SetItemText(hList, rc, 3, szApi[iApi]);
 		break;
@@ -1058,12 +1135,57 @@ BOOL OnSGMessageUpdateList(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 				ListView_GetItemText(hList, i, 3, buf, ARRAYSIZE(buf));
 				if (lstrcmp(szApi[iApi], buf) == 0)
 				{
+					ImageList_Remove(g_imageList, i);
 					ListView_DeleteItem(hList, i);
 					break;
 				}
 			}
 		}
+		rc = ListView_GetItemCount(hList);
+		lvi.mask = LVIF_IMAGE;
+		for (int i = 0; i < rc; i++)
+		{
+			lvi.iItem = i;
+			ListView_GetItem(hList, &lvi);
+			lvi.iImage = lvi.iItem;
+			ListView_SetItem(hList, &lvi);
+		}
 		break;
 	}
 	return TRUE;
 }
+
+#ifdef _DEBUG
+void DebugInit(HWND hwnd)
+{
+	HINSTANCE hinst = GetModuleHandle(NULL);
+	CreateWindow(L"Button", L"Debug1", WS_CHILD|WS_VISIBLE, 0, 0, 80, 40, hwnd, (HMENU)IDC_DEBUG1, hinst, 0);
+}
+
+void DebugTest(HWND hwnd)
+{
+	TCHAR *path[] = { L"C:\\Windows\\explorer.exe",L"C:\\Windows\\hh.exe",L"C:\\Windows\\helppane.exe",L"C:\\Windows\\regedit.exe" };
+	HWND hList = GetDlgItem(hwnd, IDC_LIST_PROCESS);
+	LVITEM item{};
+	item.mask = LVIF_IMAGE|LVIF_TEXT;
+	for (int i = 0; i < 4; i++)
+	{
+		ImageList_AddIcon(g_imageList, ExtractIcon(GetModuleHandle(NULL), path[i], 0));
+		item.iImage = i;
+		item.iItem = i;
+		item.pszText = path[i];
+		item.cchTextMax = lstrlen(path[i]);
+		ListView_InsertItem(hList, &item);
+	}
+	ImageList_Remove(g_imageList, 1);
+	ListView_DeleteItem(hList, 1);
+	item.mask = LVIF_IMAGE;
+	for (int i = 0; i < 3; i++)
+	{
+		item.iItem = i;
+		ListView_GetItem(hList, &item);
+		item.iImage = item.iItem;
+		ListView_SetItem(hList, &item);
+	}
+}
+#endif
