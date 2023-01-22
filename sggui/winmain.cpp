@@ -378,7 +378,7 @@ void SetButtonFontText(HWND hwnd)
 	LoadStringA(NULL, IDS_STRING_FONT_SETTINGS, szFontSettings, ARRAYSIZE(szFontSettings));
 	LoadStringA(NULL, IDS_STRING_ITALIC, szItalic + 1, ARRAYSIZE(szItalic) - sizeof(*buf));
 	wsprintfA(buf, "%s(&T) [%s,%d%s,%d,#%06X]", szFontSettings, g_logFont.lfFaceName, g_logFont.lfWeight, g_logFont.lfItalic ? szItalic : "", PIXEL_TO_LOGICAL_UNIT(hwnd, abs(g_logFont.lfHeight)), g_cf.rgbColors);
-	if (lstrlenA(g_logFont.lfFaceName) == 0)
+	if (strlen(g_logFont.lfFaceName) == 0)
 		*strchr(buf, ' ') = 0;
 	SetDlgItemTextA(hwnd, IDC_BUTTON_STATUS_FONT, buf);
 	wsprintfA(buf, "%s,%d%s,%d,#%06X", g_logFont.lfFaceName, g_logFont.lfWeight, g_logFont.lfItalic ? szItalic : "", PIXEL_TO_LOGICAL_UNIT(hwnd, abs(g_logFont.lfHeight)), g_cf.rgbColors);
@@ -395,7 +395,7 @@ BOOL GuiReadMem(HWND hwnd)
 	SetWindowTextA(GetDlgItem(hwnd, IDC_COMBO_STATUS_FORMAT), pMem->statusFormat);
 	ComboBox_SetCurSel(GetDlgItem(hwnd, IDC_COMBO_STATUS_POSITION), pMem->statusPosition);
 
-	lstrcpyA(g_logFont.lfFaceName, pMem->fontName);
+	strcpy_s(g_logFont.lfFaceName, pMem->fontName);
 	g_logFont.lfWeight = pMem->fontWeight;
 	g_logFont.lfItalic = pMem->fontItalic;
 	g_logFont.lfHeight = -LOGICAL_UNIT_TO_PIXEL(hwnd, pMem->fontSize);
@@ -431,7 +431,7 @@ BOOL GuiSaveMem(HWND hwnd)
 	GetEditComboBoxText(GetDlgItem(hwnd, IDC_COMBO_STATUS_FORMAT), pMem->statusFormat, ARRAYSIZE(pMem->statusFormat));
 	pMem->statusPosition = ComboBox_GetCurSel(GetDlgItem(hwnd, IDC_COMBO_STATUS_POSITION));
 
-	lstrcpyA(pMem->fontName, g_logFont.lfFaceName);
+	strcpy_s(pMem->fontName, g_logFont.lfFaceName);
 	pMem->fontWeight = g_logFont.lfWeight;
 	pMem->fontItalic = g_logFont.lfItalic;
 	pMem->fontSize = PIXEL_TO_LOGICAL_UNIT(hwnd, abs(g_logFont.lfHeight));
@@ -460,7 +460,7 @@ BOOL MemReadIni()
 	char szDefaultPath[MAX_PATH] = "";
 	size_t c;
 	getenv_s(&c, szDefaultPath, "windir");
-	lstrcatA(szDefaultPath, "\\Fonts\\SimSun.ttc:0");
+	strcat_s(szDefaultPath, "\\Fonts\\SimSun.ttc:0");
 	INI_READ_STR2("fontPath", pMem->fontPath, ARRAYSIZE(pMem->fontPath),szDefaultPath);
 	pMem->useSystemDPI = INI_READ_INT2("useSystemDPI",TRUE);
 	pMem->fontSize = INI_READ_INT2("fontSize",24);
@@ -643,8 +643,8 @@ BOOL StartSpeedGear()
 #endif
 	char buf[256] = "";
 	int success_count = 0;
-	lstrcpyA(buf, DLGTITLE " - ");
-	int len = lstrlenA(buf);
+	strcpy_s(buf, DLGTITLE " - ");
+	int len = strlen(buf);
 	LoadStringA(GetModuleHandle(NULL), IDS_STRING_RUNNING, buf + len, ARRAYSIZE(buf) - len * sizeof(*buf));
 	for (int i = 0; i < ARRAYSIZE(dllName); i++)
 	{
@@ -658,7 +658,7 @@ BOOL StartSpeedGear()
 			DWORD err = GetLastError();
 			wsprintfA(msg, "%#x\n", err);
 			FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM, NULL, err, GetUserDefaultLangID(), buf, ARRAYSIZE(buf), NULL);
-			lstrcatA(msg, buf);
+			strcat_s(msg, buf);
 			MessageBoxA(NULL, msg, NULL, MB_ICONERROR);
 			return FALSE;
 		}*/
@@ -679,15 +679,15 @@ BOOL StartSpeedGear()
 		if (hHookSGList[i])
 		{
 			if (success_count == 0)
-				lstrcatA(buf, " [");
+				strcat_s(buf, " [");
 			else
-				lstrcatA(buf, ", ");
-			lstrcatA(buf, dllName[i]);
+				strcat_s(buf, ", ");
+			strcat_s(buf, dllName[i]);
 			success_count++;
 		}
 	}
 	if (success_count > 0)
-		lstrcatA(buf, "]");
+		strcat_s(buf, "]");
 	SetWindowTextA(hMain, buf);
 	return TRUE;
 }
@@ -808,13 +808,13 @@ BOOL OnSliderSpeed(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 BOOL OnButtonModeHelp(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-	char buf[256] = "", szHelp[16] = "";
+	char buf[262] = "", szHelp[16] = "";
 	LoadStringA(NULL, IDS_STRING_HELP, szHelp, ARRAYSIZE(szHelp));
 	LoadStringA(NULL, IDS_STRING_MODE_HELP, buf, ARRAYSIZE(buf));
 #ifdef _M_IX86
-	lstrcatA(buf, "Direct3D 8, ");
+	strcat_s(buf, "Direct3D 8, ");
 #endif
-	lstrcatA(buf, "Direct3D 9, Direct3D 10, Direct3D 11, Direct3D 12, DirectDraw, OpenGL, Vulkan");
+	strcat_s(buf, "Direct3D 9, Direct3D 10, Direct3D 11, Direct3D 12, DirectDraw, OpenGL, Vulkan");
 	MessageBoxA(hWnd, buf, szHelp, MB_OK);
 	return TRUE;
 }
@@ -916,7 +916,7 @@ BOOL OnPaint(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	SetBkMode(hdc, TRANSPARENT);
 	SetTextColor(hdc, g_cf.rgbColors);
 	HFONT hOldFont = SelectFont(hdc, CreateFontIndirectA(&g_logFont));
-	DrawTextA(hdc, t, lstrlenA(t), &r, DT_SINGLELINE | DT_BOTTOM | (pos - 6));
+	DrawTextA(hdc, t, strlen(t), &r, DT_SINGLELINE | DT_BOTTOM | (pos - 6));
 	DeleteObject(SelectFont(hdc, hOldFont));
 	EndPaint(hStatic, &ps);
 	return FALSE;
@@ -1031,8 +1031,8 @@ BOOL OnLaunchAnotherArch(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	if ((INT_PTR)ShellExecute(hWnd, TEXT("open"), TEXT(LAUNCH_FILE), NULL, NULL, SW_SHOWNORMAL) <= 32)
 	{
 		char buf[256] = "";
-		lstrcpyA(buf, LAUNCH_FILE "\n");
-		int len = lstrlenA(buf);
+		strcpy_s(buf, LAUNCH_FILE "\n");
+		int len = strlen(buf);
 		LoadStringA(NULL, IDS_STRING_LAUNCH_FAIL, buf + len, ARRAYSIZE(buf) - len * sizeof(*buf));
 		MessageBoxA(hWnd, buf, NULL, MB_ICONERROR);
 		return FALSE;
