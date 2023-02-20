@@ -994,6 +994,7 @@ BOOL OnHotkeySlightSlower(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 BOOL OnAbout(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+#if _WIN32_WINNT>=_WIN32_WINNT_VISTA
 	TASKDIALOGCONFIG tdc{};
 	tdc.cbSize = sizeof(tdc);
 	tdc.hwndParent = hWnd;
@@ -1017,7 +1018,17 @@ BOOL OnAbout(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		}
 		return S_OK;
 	};
-	TaskDialogIndirect(&tdc, NULL, NULL, NULL);
+	typedef HRESULT(WINAPI*TTaskDialogIndirect)(_In_ const TASKDIALOGCONFIG *pTaskConfig, _Out_opt_ int *pnButton, _Out_opt_ int *pnRadioButton, _Out_opt_ BOOL *pfVerificationFlagChecked);
+	TTaskDialogIndirect f = (TTaskDialogIndirect)GetProcAddress(LoadLibrary(TEXT("comctl32.dll")), "TaskDialogIndirect");
+	if (f)
+		f(&tdc, NULL, NULL, NULL);
+	else
+		MessageBox(hWnd, tdc.pszContent, tdc.pszWindowTitle, MB_ICONINFORMATION);
+#elif _WIN32_WINNT>=_WIN32_WINNT_WINXP
+	ShellMessageBox(GetModuleHandle(NULL), hWnd, tdc.pszContent, tdc.pszWindowTitle, MB_ICONINFORMATION);
+#else
+	MessageBox(hWnd, tdc.pszContent, tdc.pszWindowTitle, MB_ICONINFORMATION);
+#endif
 	return TRUE;
 }
 
