@@ -1023,11 +1023,11 @@ BOOL OnAbout(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	if (f)
 		f(&tdc, NULL, NULL, NULL);
 	else
-		MessageBox(hWnd, tdc.pszContent, tdc.pszWindowTitle, MB_ICONINFORMATION);
+		MessageBox(hWnd, buf, tdc.pszWindowTitle, MB_ICONINFORMATION);
 #elif _WIN32_WINNT>=_WIN32_WINNT_WINXP
-	ShellMessageBox(GetModuleHandle(NULL), hWnd, tdc.pszContent, tdc.pszWindowTitle, MB_ICONINFORMATION);
+	ShellMessageBox(GetModuleHandle(NULL), hWnd, buf, tdc.pszWindowTitle, MB_ICONINFORMATION);
 #else
-	MessageBox(hWnd, tdc.pszContent, tdc.pszWindowTitle, MB_ICONINFORMATION);
+	MessageBox(hWnd, buf, tdc.pszWindowTitle, MB_ICONINFORMATION);
 #endif
 	return TRUE;
 }
